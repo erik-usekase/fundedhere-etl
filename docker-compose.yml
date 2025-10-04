@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16}
+    container_name: app-postgres
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-appdb}
+      POSTGRES_USER:     ${POSTGRES_USER:-appuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      TZ:                ${TZ:-UTC}
+    ports:
+      # host:container — bind host 5433 so we don't collide with local 5432
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      # persistent data + an optional place for you to drop CSVs (not required)
+      - ${DATA_DIR:-./data}/pgdata:/var/lib/postgresql/data
+      - ${DATA_DIR:-./data}/inc_data:/data/inc_data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appuser} -d ${POSTGRES_DB:-appdb} -h localhost -p 5432"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+      start_period: 5s
+    networks: [appnet]
+    profiles: ["db-local-bind"]
+
+  postgres_nobind:
+    image: ${POSTGRES_IMAGE:-postgres:16}
+    container_name: app-postgres-nobind
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-appdb}
+      POSTGRES_USER:     ${POSTGRES_USER:-appuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      TZ:                ${TZ:-UTC}
+    networks: [appnet]
+    profiles: ["db-local-nobind"]
+
+networks:
+  appnet: {}

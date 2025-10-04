@@ -1,0 +1,120 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Minimal Makefile — delegates logic to ./scripts/*
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Load .env if present
+ifneq (,$(wildcard .env))
+include .env
+export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' .env)
+endif
+
+# Defaults
+EFFECTIVE_DATA_DIR := $(if $(strip $(DATA_DIR)),$(DATA_DIR),./data)
+INC_DIR := $(EFFECTIVE_DATA_DIR)/inc_data
+
+.RECIPEPREFIX := >
+.SILENT:
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Lifecycle (compose or host/remote handled in scripts)
+# ──────────────────────────────────────────────────────────────────────────────
+.PHONY: prep-data up up-wait down logs env psql-host sql sqlf refresh counts
+
+prep-data:
+> mkdir -p "$(EFFECTIVE_DATA_DIR)/pgdata" "$(INC_DIR)"
+
+up: prep-data
+> scripts/db_up.sh
+
+up-wait: up
+> scripts/db_wait.sh
+
+down:
+> scripts/db_down.sh
+
+logs:
+> scripts/db_logs.sh
+
+env:
+> echo "DATA_DIR=$(DATA_DIR)  EFFECTIVE_DATA_DIR=$(EFFECTIVE_DATA_DIR)"
+> echo "INC_DIR=$(INC_DIR)"
+> echo "DB_MODE=${DB_MODE:-container-bind}"
+> echo "PGHOST=$(PGHOST) PGPORT=$(PGPORT) PGDATABASE=$(PGDATABASE) PGUSER=$(PGUSER) PGSSLMODE=$(PGSSLMODE)"
+> echo "REMOTE_PGHOST=$(REMOTE_PGHOST) REMOTE_PGPORT=$(REMOTE_PGPORT) REMOTE_PGDATABASE=$(REMOTE_PGDATABASE) REMOTE_PGUSER=$(REMOTE_PGUSER) REMOTE_PGSSLMODE=$(REMOTE_PGSSLMODE)"
+
+psql-host:
+> scripts/run_sql.sh -c "select now() as server_time, version();"
+
+sql:
+> test -n "$(CMD)" || { echo "Usage: make sql CMD='select 1'"; exit 2; }
+> scripts/run_sql.sh -c "$(CMD)"
+
+sqlf:
+> test -n "$(FILE)" || { echo "Usage: make sqlf FILE=path.sql"; exit 2; }
+> scripts/run_sql.sh -f "$(FILE)"
+
+refresh:
+> scripts/run_sql.sh -f scripts/sql-utils/refresh_core.sql
+
+counts:
+> scripts/run_sql.sh -f scripts/sql-utils/counts.sql
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CSV prep (uses Python utilities under ./scripts/)
+# ──────────────────────────────────────────────────────────────────────────────
+.PHONY: preview-cols prep-external prep-vatxn prep-repmt-sku prep-repmt-sales prep-all
+
+preview-cols:
+> test -n "$(FILE)" || { echo "Usage: make preview-cols FILE=path.csv"; exit 2; }
+> python3 scripts/preview_cols.py "$(FILE)"
+
+prep-external:
+> test -n "$(SRC)" -a -n "$(OUT)" || { echo "Usage: make prep-external SRC=in.csv OUT=out.csv"; exit 2; }
+> python3 scripts/prep_external.py "$(SRC)" "$(OUT)"
+
+prep-vatxn:
+> test -n "$(SRC)" -a -n "$(OUT)" || { echo "Usage: make prep-vatxn SRC=in.csv OUT=out.csv"; exit 2; }
+> python3 scripts/prep_vatxn.py "$(SRC)" "$(OUT)"
+
+prep-repmt-sku:
+> test -n "$(SRC)" -a -n "$(OUT)" || { echo "Usage: make prep-repmt-sku SRC=in.csv OUT=out.csv"; exit 2; }
+> python3 scripts/prep_repmt_sku.py "$(SRC)" "$(OUT)"
+
+prep-repmt-sales:
+> test -n "$(SRC)" -a -n "$(OUT)" || { echo "Usage: make prep-repmt-sales SRC=in.csv OUT=out.csv"; exit 2; }
+> python3 scripts/prep_repmt_sales.py "$(SRC)" "$(OUT)"
+
+prep-all:
+> ./scripts/prep_all.sh "$(INC_DIR)"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CSV loaders — column lists handled by scripts/load_raw.sh
+# ──────────────────────────────────────────────────────────────────────────────
+.PHONY: load-external load-vatxn load-repmt-sku load-repmt-sales load-all
+
+load-external:
+> test -n "$(FILE)" || { echo "Usage: make load-external FILE=path.csv[.gz]"; exit 2; }
+> scripts/load_raw.sh raw.external_accounts "beneficiary_bank_account_number,buy_amount,buy_currency,created_date" "$(FILE)"
+
+load-vatxn:
+> test -n "$(FILE)" || { echo "Usage: make load-vatxn FILE=path.csv[.gz]"; exit 2; }
+> scripts/load_raw.sh raw.va_txn "sender_virtual_account_id,sender_virtual_account_number,sender_note_id,receiver_virtual_account_id,receiver_virtual_account_number,receiver_note_id,receiver_va_opening_balance,receiver_va_closing_balance,amount,date,remarks" "$(FILE)"
+
+load-repmt-sku:
+> test -n "$(FILE)" || { echo "Usage: make load-repmt-sku FILE=path.csv[.gz]"; exit 2; }
+> scripts/load_raw.sh raw.repmt_sku "merchant,sku_id,acquirer_fees_expected,acquirer_fees_paid,fh_admin_fees_expected,fh_admin_fees_paid,int_difference_expected,int_difference_paid,sr_principal_expected,sr_principal_paid,sr_interest_expected,sr_interest_paid,jr_principal_expected,jr_principal_paid,jr_interest_expected,jr_interest_paid,spar_merchant,additional_interests_paid_to_fh" "$(FILE)"
+
+load-repmt-sales:
+> test -n "$(FILE)" || { echo "Usage: make load-repmt-sales FILE=path.csv[.gz]"; exit 2; }
+> scripts/load_raw.sh raw.repmt_sales "merchant,sku_id,total_funds_inflow,sales_proceeds,l2e" "$(FILE)"
+
+load-all:
+> DIR="$(INC_DIR)"; echo "Scanning $$DIR"; \
+  for f in "$$DIR"/external_accounts*_prepped.csv "$$DIR"/external_accounts*.csv "$$DIR"/external_accounts*.csv.gz; do \
+    [ -e "$$f" ] && $(MAKE) --no-print-directory load-external FILE="$$f"; done; \
+  for f in "$$DIR"/va_txn*_prepped.csv "$$DIR"/va_txn*.csv "$$DIR"/va_txn*.csv.gz; do \
+    [ -e "$$f" ] && $(MAKE) --no-print-directory load-vatxn FILE="$$f"; done; \
+  for f in "$$DIR"/repmt_sku*_prepped.csv "$$DIR"/repmt_sku*.csv "$$DIR"/repmt_sku*.csv.gz; do \
+    [ -e "$$f" ] && $(MAKE) --no-print-directory load-repmt-sku FILE="$$f"; done; \
+  for f in "$$DIR"/repmt_sales*_prepped.csv "$$DIR"/repmt_sales*.csv "$$DIR"/repmt_sales*.csv.gz; do \
+    [ -e "$$f" ] && $(MAKE) --no-print-directory load-repmt-sales FILE="$$f"; done
