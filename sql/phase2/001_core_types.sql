@@ -1,76 +1,91 @@
 -- sql/phase2/001_core_types.sql
+-- Helper conversion functions used across core views/MVs.
+
 SET search_path = core, public;
 
-CREATE OR REPLACE FUNCTION core.to_numeric_safe(txt text)
-RETURNS numeric LANGUAGE sql IMMUTABLE AS $$
-  SELECT NULLIF(regexp_replace(coalesce(txt,''), '[^0-9\.-]', '', 'g'), '')::numeric;
-$$;
-
-CREATE OR REPLACE FUNCTION core.to_date_safe(txt text)
-RETURNS date LANGUAGE plpgsql IMMUTABLE AS $$
-DECLARE
-  s text := coalesce(txt,'');
-  d date;
+-- Create schema if not already present
+DO $$
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'core') THEN
+    EXECUTE 'CREATE SCHEMA core';
+  END IF;
+END$$;
+
+-- Safe numeric cast: strips commas/whitespace/stray chars; returns NULL on failure.
+CREATE OR REPLACE FUNCTION core.to_numeric_safe(in_text text)
+RETURNS numeric
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+  v text;
+  r numeric;
+BEGIN
+  IF in_text IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  v := btrim(in_text);
+  IF v = '' THEN
+    RETURN NULL;
+  END IF;
+
+  -- remove commas, keep digits, minus, and dot
+  v := regexp_replace(v, ',',      '', 'g');
+  v := regexp_replace(v, '[^0-9\.-]', '', 'g');
+
   BEGIN
-    d := to_date(s, 'MM/DD/YYYY');
-    RETURN d;
+    r := v::numeric;
+    RETURN r;
   EXCEPTION WHEN others THEN
-    BEGIN
-      d := to_date(s, 'YYYY-MM-DD');
-      RETURN d;
-    EXCEPTION WHEN others THEN
-      RETURN NULL;
-    END;
+    RETURN NULL;
   END;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION core.to_tstz_safe(txt text)
-RETURNS timestamptz LANGUAGE plpgsql IMMUTABLE AS $$
+-- Safe timestamptz cast: tries several common date formats; returns NULL if none match.
+CREATE OR REPLACE FUNCTION core.to_tstz_safe(in_text text)
+RETURNS timestamptz
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
 DECLARE
-  s text := coalesce(txt,'');
+  v text;
   ts timestamptz;
 BEGIN
+  IF in_text IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  v := btrim(in_text);
+  IF v = '' THEN
+    RETURN NULL;
+  END IF;
+
+  -- Try flexible M/D/YYYY
   BEGIN
-    ts := (to_timestamp(s, 'MM/DD/YYYY HH24:MI:SS') at time zone 'UTC');
+    ts := to_timestamp(v, 'FMMM/FMDD/YYYY') AT TIME ZONE 'UTC';
     RETURN ts;
   EXCEPTION WHEN others THEN
+    -- Try YYYY-MM-DD
     BEGIN
-      ts := make_timestamptz(extract(year from core.to_date_safe(s))::int
-                             ,extract(month from core.to_date_safe(s))::int
-                             ,extract(day from core.to_date_safe(s))::int
-                             ,0,0,0,'UTC');
+      ts := to_timestamp(v, 'YYYY-MM-DD') AT TIME ZONE 'UTC';
       RETURN ts;
     EXCEPTION WHEN others THEN
-      RETURN NULL;
+      -- Try YYYY/MM/DD
+      BEGIN
+        ts := to_timestamp(v, 'YYYY/MM/DD') AT TIME ZONE 'UTC';
+        RETURN ts;
+      EXCEPTION WHEN others THEN
+        -- Try DD/MM/YYYY
+        BEGIN
+          ts := to_timestamp(v, 'DD/MM/YYYY') AT TIME ZONE 'UTC';
+          RETURN ts;
+        EXCEPTION WHEN others THEN
+          RETURN NULL;
+        END;
+      END;
     END;
   END;
-END;
-$$;
-
-CREATE OR REPLACE VIEW core.v_va_txn_categorized AS
-SELECT
-  t.*,
-  COALESCE(
-    (SELECT m.category_code
-     FROM ref.remarks_category_map m
-     WHERE (CASE WHEN m.is_regex THEN t.remarks ~* m.raw_pattern ELSE lower(t.remarks) = lower(m.raw_pattern) END)
-     ORDER BY m.priority ASC
-     LIMIT 1),
-  'uncategorized') AS category_code
-FROM raw.va_txn t;
-
-CREATE OR REPLACE FUNCTION core.refresh_all()
-RETURNS void LANGUAGE plpgsql AS $$
-BEGIN
-  REFRESH MATERIALIZED VIEW core.mv_external_accounts;
-  REFRESH MATERIALIZED VIEW core.mv_va_txn;
-  REFRESH MATERIALIZED VIEW core.mv_repmt_sku;
-  REFRESH MATERIALIZED VIEW core.mv_repmt_sales;
-  ANALYZE core.mv_external_accounts;
-  ANALYZE core.mv_va_txn;
-  ANALYZE core.mv_repmt_sku;
-  ANALYZE core.mv_repmt_sales;
 END;
 $$;

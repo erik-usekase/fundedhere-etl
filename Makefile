@@ -90,7 +90,7 @@ prep-all:
 # ──────────────────────────────────────────────────────────────────────────────
 # CSV loaders — column lists handled by scripts/load_raw.sh
 # ──────────────────────────────────────────────────────────────────────────────
-.PHONY: load-external load-vatxn load-repmt-sku load-repmt-sales load-all
+.PHONY: load-external load-vatxn load-repmt-sku load-repmt-sales load-all load-all-fresh test-health test-level1
 
 load-external:
 > test -n "$(FILE)" || { echo "Usage: make load-external FILE=path.csv[.gz]"; exit 2; }
@@ -108,13 +108,26 @@ load-repmt-sales:
 > test -n "$(FILE)" || { echo "Usage: make load-repmt-sales FILE=path.csv[.gz]"; exit 2; }
 > scripts/load_raw.sh raw.repmt_sales "merchant,sku_id,total_funds_inflow,sales_proceeds,l2e" "$(FILE)"
 
+# Load only PREPPED CSVs (explicit; avoids picking up raw files)
 load-all:
-> DIR="$(INC_DIR)"; echo "Scanning $$DIR"; \
-  for f in "$$DIR"/external_accounts*_prepped.csv "$$DIR"/external_accounts*.csv "$$DIR"/external_accounts*.csv.gz; do \
-    [ -e "$$f" ] && $(MAKE) --no-print-directory load-external FILE="$$f"; done; \
-  for f in "$$DIR"/va_txn*_prepped.csv "$$DIR"/va_txn*.csv "$$DIR"/va_txn*.csv.gz; do \
-    [ -e "$$f" ] && $(MAKE) --no-print-directory load-vatxn FILE="$$f"; done; \
-  for f in "$$DIR"/repmt_sku*_prepped.csv "$$DIR"/repmt_sku*.csv "$$DIR"/repmt_sku*.csv.gz; do \
-    [ -e "$$f" ] && $(MAKE) --no-print-directory load-repmt-sku FILE="$$f"; done; \
-  for f in "$$DIR"/repmt_sales*_prepped.csv "$$DIR"/repmt_sales*.csv "$$DIR"/repmt_sales*.csv.gz; do \
-    [ -e "$$f" ] && $(MAKE) --no-print-directory load-repmt-sales FILE="$$f"; done
+> echo "Loading PREPPED CSVs from $(INC_DIR)"
+> test -f "$(INC_DIR)/external_accounts_prepped.csv" || { echo "Missing external_accounts_prepped.csv"; exit 2; }
+> test -f "$(INC_DIR)/va_txn_prepped.csv"          || { echo "Missing va_txn_prepped.csv"; exit 2; }
+> test -f "$(INC_DIR)/repmt_sku_prepped.csv"       || { echo "Missing repmt_sku_prepped.csv"; exit 2; }
+> test -f "$(INC_DIR)/repmt_sales_prepped.csv"     || { echo "Missing repmt_sales_prepped.csv"; exit 2; }
+> $(MAKE) load-external    FILE="$(INC_DIR)/external_accounts_prepped.csv"
+> $(MAKE) load-vatxn       FILE="$(INC_DIR)/va_txn_prepped.csv"
+> $(MAKE) load-repmt-sku   FILE="$(INC_DIR)/repmt_sku_prepped.csv"
+> $(MAKE) load-repmt-sales FILE="$(INC_DIR)/repmt_sales_prepped.csv"
+
+# Truncate then load-all (clean reload)
+load-all-fresh:
+> scripts/run_sql.sh -c "truncate raw.external_accounts, raw.va_txn, raw.repmt_sku, raw.repmt_sales;"
+> $(MAKE) load-all
+
+# Quick health checks
+test-health:
+> scripts/run_sql.sh -f scripts/sql-tests/chain_status.sql
+
+test-level1:
+> scripts/run_sql.sh -f scripts/sql-tests/level1_pretty.sql
