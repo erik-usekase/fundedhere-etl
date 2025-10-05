@@ -90,7 +90,7 @@ prep-all:
 # ──────────────────────────────────────────────────────────────────────────────
 # CSV loaders — column lists handled by scripts/load_raw.sh
 # ──────────────────────────────────────────────────────────────────────────────
-.PHONY: load-external load-vatxn load-repmt-sku load-repmt-sales load-all load-all-fresh test-health test-level1
+.PHONY: load-external load-vatxn load-repmt-sku load-repmt-sales load-all load-all-fresh load-mapping test-health test-level1
 
 load-external:
 > test -n "$(FILE)" || { echo "Usage: make load-external FILE=path.csv[.gz]"; exit 2; }
@@ -107,6 +107,9 @@ load-repmt-sku:
 load-repmt-sales:
 > test -n "$(FILE)" || { echo "Usage: make load-repmt-sales FILE=path.csv[.gz]"; exit 2; }
 > scripts/load_raw.sh raw.repmt_sales "merchant,sku_id,total_funds_inflow,sales_proceeds,l2e" "$(FILE)"
+
+load-mapping:
+> scripts/load_note_sku_va_map.sh "$(if $(strip $(FILE)),$(FILE),$(INC_DIR)/note_sku_va_map_prepped.csv)"
 
 # Load only PREPPED CSVs (explicit; avoids picking up raw files)
 load-all:

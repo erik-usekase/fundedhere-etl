@@ -117,3 +117,108 @@ LEFT JOIN ref.merchant mr ON mr.merchant_id = j.merchant_id
 LEFT JOIN core.v_inter_sku_transfers_agg tx
   ON tx.sku_id = j.sku_id AND tx.merchant_id = j.merchant_id
 ORDER BY 1;
+
+CREATE OR REPLACE VIEW mart.v_level2b AS
+WITH ui_sales AS (
+  SELECT
+    s.sku_id,
+    COALESCE(SUM(s.total_funds_inflow), 0::numeric) AS total_fund_inflow_ui
+  FROM core.mv_repmt_sales s
+  GROUP BY 1
+),
+ui_paid AS (
+  SELECT
+    s.sku_id,
+    COALESCE(SUM(s.acquirer_fees_paid), 0::numeric)      AS management_fee_ui,
+    COALESCE(SUM(s.fh_admin_fees_paid), 0::numeric)      AS admin_fee_ui,
+    COALESCE(SUM(s.int_difference_paid), 0::numeric)     AS interest_difference_ui,
+    COALESCE(SUM(s.sr_principal_paid), 0::numeric)       AS sr_principal_ui,
+    COALESCE(SUM(s.sr_interest_paid), 0::numeric)        AS sr_interest_ui,
+    COALESCE(SUM(s.jr_principal_paid), 0::numeric)       AS jr_principal_ui,
+    COALESCE(SUM(s.jr_interest_paid), 0::numeric)        AS jr_interest_ui,
+    COALESCE(SUM(s.spar_merchant), 0::numeric)           AS spar_ui,
+    COALESCE(SUM(s.additional_interests_paid_to_fh), 0::numeric) AS fh_platform_ui
+  FROM core.mv_repmt_sku s
+  GROUP BY 1
+),
+cf_paid AS (
+  SELECT
+    f.sku_id,
+    COALESCE(SUM(f.amount_received), 0::numeric)           AS amount_received_cf,
+    COALESCE(SUM(f.management_fee_paid), 0::numeric)       AS management_fee_cf,
+    COALESCE(SUM(f.admin_fee_paid), 0::numeric)            AS admin_fee_cf,
+    COALESCE(SUM(f.interest_difference_paid), 0::numeric)  AS interest_difference_cf,
+    COALESCE(SUM(f.sr_principal_paid), 0::numeric)         AS sr_principal_cf,
+    COALESCE(SUM(f.sr_interest_paid), 0::numeric)          AS sr_interest_cf,
+    COALESCE(SUM(f.jr_principal_paid), 0::numeric)         AS jr_principal_cf,
+    COALESCE(SUM(f.jr_interest_paid), 0::numeric)          AS jr_interest_cf,
+    COALESCE(SUM(f.spar_paid), 0::numeric)                 AS spar_cf
+  FROM core.v_flows_pivot f
+  GROUP BY 1
+),
+base AS (
+  SELECT
+    sku.sku_id,
+    sku.merchant_id,
+    m.merchant_name,
+    COALESCE(us.total_fund_inflow_ui, 0::numeric)   AS total_fund_inflow_ui,
+    COALESCE(cf.amount_received_cf, 0::numeric)     AS amount_received_cf,
+    COALESCE(up.management_fee_ui, 0::numeric)      AS management_fee_ui,
+    COALESCE(cf.management_fee_cf, 0::numeric)      AS management_fee_cf,
+    COALESCE(up.admin_fee_ui, 0::numeric)           AS admin_fee_ui,
+    COALESCE(cf.admin_fee_cf, 0::numeric)           AS admin_fee_cf,
+    COALESCE(up.interest_difference_ui, 0::numeric) AS interest_difference_ui,
+    COALESCE(cf.interest_difference_cf, 0::numeric) AS interest_difference_cf,
+    COALESCE(up.sr_principal_ui, 0::numeric)        AS sr_principal_ui,
+    COALESCE(cf.sr_principal_cf, 0::numeric)        AS sr_principal_cf,
+    COALESCE(up.sr_interest_ui, 0::numeric)         AS sr_interest_ui,
+    COALESCE(cf.sr_interest_cf, 0::numeric)         AS sr_interest_cf,
+    COALESCE(up.jr_principal_ui, 0::numeric)        AS jr_principal_ui,
+    COALESCE(cf.jr_principal_cf, 0::numeric)        AS jr_principal_cf,
+    COALESCE(up.jr_interest_ui, 0::numeric)         AS jr_interest_ui,
+    COALESCE(cf.jr_interest_cf, 0::numeric)         AS jr_interest_cf,
+    COALESCE(up.spar_ui, 0::numeric)                AS spar_ui,
+    COALESCE(cf.spar_cf, 0::numeric)                AS spar_cf,
+    COALESCE(up.fh_platform_ui, 0::numeric)         AS fh_platform_ui,
+    0::numeric                                      AS fh_platform_cf
+  FROM ref.sku sku
+  JOIN ref.merchant m ON m.merchant_id = sku.merchant_id
+  LEFT JOIN ui_sales us ON us.sku_id = sku.sku_id
+  LEFT JOIN ui_paid up  ON up.sku_id = sku.sku_id
+  LEFT JOIN cf_paid cf  ON cf.sku_id = sku.sku_id
+)
+SELECT
+  b.sku_id                                      AS "SKU ID",
+  b.merchant_name                               AS "Merchant",
+  (b.total_fund_inflow_ui - b.amount_received_cf)              AS "Total Fund Inflow Variance",
+  (b.management_fee_ui - b.management_fee_cf)                  AS "Management Fee Paid Variance",
+  (b.admin_fee_ui - b.admin_fee_cf)                            AS "Administrative Fee Paid Variance",
+  (b.interest_difference_ui - b.interest_difference_cf)        AS "Interest Difference Paid Variance",
+  (b.sr_principal_ui - b.sr_principal_cf)                      AS "Senior Principal Paid Variance",
+  (b.sr_interest_ui - b.sr_interest_cf)                        AS "Senior Interest Paid Variance",
+  (b.jr_principal_ui - b.jr_principal_cf)                      AS "Junior Principal Paid Variance",
+  (b.jr_interest_ui - b.jr_interest_cf)                        AS "Junior Interest Paid Variance",
+  (b.spar_ui - b.spar_cf)                                      AS "SPAR Variance",
+  (b.fh_platform_ui - b.fh_platform_cf)                        AS "FH Platform Fee Variance",
+  b.management_fee_ui                                          AS "Management Fee Paid (UI)",
+  b.management_fee_cf                                          AS "Management Fee Paid (CF)",
+  b.admin_fee_ui                                               AS "Administrative Fee Paid (UI)",
+  b.admin_fee_cf                                               AS "Administrative Fee Paid (CF)",
+  b.interest_difference_ui                                     AS "Interest Difference Paid (UI)",
+  b.interest_difference_cf                                     AS "Interest Difference Paid (CF)",
+  b.sr_principal_ui                                            AS "Senior Principal Paid (UI)",
+  b.sr_principal_cf                                            AS "Senior Principal Paid (CF)",
+  b.sr_interest_ui                                             AS "Senior Interest Paid (UI)",
+  b.sr_interest_cf                                             AS "Senior Interest Paid (CF)",
+  b.jr_principal_ui                                            AS "Junior Principal Paid (UI)",
+  b.jr_principal_cf                                            AS "Junior Principal Paid (CF)",
+  b.jr_interest_ui                                             AS "Junior Interest Paid (UI)",
+  b.jr_interest_cf                                             AS "Junior Interest Paid (CF)",
+  b.spar_ui                                                    AS "SPAR (UI)",
+  b.spar_cf                                                    AS "SPAR (CF)",
+  b.fh_platform_ui                                             AS "FH Platform Fee (UI)",
+  b.fh_platform_cf                                             AS "FH Platform Fee (CF)",
+  b.total_fund_inflow_ui                                       AS "Total Fund Inflow (UI)",
+  b.amount_received_cf                                         AS "Amount Received (CF)"
+FROM base b
+ORDER BY 1;

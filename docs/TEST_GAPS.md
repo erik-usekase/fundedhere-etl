@@ -7,7 +7,7 @@
 
 ## Missing Tests
 1. **Parity Assertions**
-   - No automated comparison between spreadsheet totals and SQL outputs for Level-1/Level-2 metrics.
+   - Level-1 spreadsheet parity is automated; Level‑2a/2b parity checks still need to be implemented.
    - Missing epsilon-based equality checks for floating point variances.
 2. **Variance Thresholds**
    - No guardrails ensuring `Variance Pulled vs Received` or `Outstanding` columns stay within acceptable bounds (e.g., > -4.0).

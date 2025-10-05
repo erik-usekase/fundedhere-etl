@@ -16,6 +16,7 @@
 ## Functional Observations
 - `mart.v_level1` now lifts from the mapping universe, so all 366 SKUs surface even when pulls/receipts are zero. `Amount Received` restricts to `merchant_repayment` inflows per the Excel logic.
 - `mart.v_level2a` already returned 366 SKUs; row-count parity guard confirms alignment with the raw sales feed.
+- `mart.v_level2b` presents UI vs cashflow variance columns per SKU. Most CF buckets now populate thanks to the expanded remark mappings; FH platform fees remain placeholder values until VA transactions are categorised.
 - Variance columns remain large for many SKUs (matching the spreadsheet’s unresolved gaps); tolerance assertions are left failing until the business agrees on acceptable thresholds or fixes outstanding balances.
 
 ## Missing/Broken Links

@@ -45,15 +45,19 @@ Level-1 reconciliation occurs entirely in `mart.v_level1` by joining the three c
   - `Amount Received` = inflow sum where `category_code = 'merchant_repayment'` (top-ups such as `funds_to_sku` are broken out separately in `core.v_flows_pivot`).
   - `Sales Proceeds` = sum of UI sales from `core.mv_repmt_sales` (joined by SKU, replicated across VA rows).
   - Variances derive from straight subtraction (Pulled − Received, Sales − Received), mirroring spreadsheet outputs (no tolerance yet enforced).
-- **Level-2 (`sql/phase2/020_mart_level2.sql`)**:
+- **Level-2a (`sql/phase2/020_mart_level2.sql`)**:
   - `Amount Received` reused from the pivot.
   - Paid buckets from `core.v_flows_pivot` appear separately and feed the all-in distributed total.
   - Expected buckets from `core.mv_repmt_sku` (joined via `ref.sku`) provide baselines.
   - Outstanding columns subtract paid from expected per bucket.
   - Transfer columns append the aggregated results of `core.v_inter_sku_transfers_agg`.
+- **Level-2b (`sql/phase2/020_mart_level2.sql`)**:
+  - One row per SKU compares UI paid amounts (`core.mv_repmt_sku` / `core.mv_repmt_sales`) with cashflow-derived values from `core.v_flows_pivot`.
+  - Variance columns expose `UI − CF` deltas for each fee/interest/principal bucket, plus total fund inflow vs amount received.
+  - `FH Platform Fee (CF)` is currently a placeholder (0) until remark mappings cover the relevant VA transactions.
 
 ## 4. Notable Behaviour
-- **Dependency on mappings**: Both Mart views rely on `ref.note_sku_va_map` and `ref.merchant` records. `scripts/load_note_sku_va_map.sh` provides an ingestion hook, but the shipped CSV is a header-only template—coverage tests (`scripts/sql-tests/check_mapping_coverage.sql`) will fail until a full mapping is supplied.
-- **Categorisation coverage**: Only categories present in `ref.remarks_category_map` contribute to Level-2 paid buckets. Remarks falling into `uncategorized` never roll into the waterfall or variance checks.
+- **Dependency on mappings**: All mart views rely on `ref.note_sku_va_map` and `ref.merchant` records. `scripts/load_note_sku_va_map.sh` ingests the mapping CSV before transforms run.
+- **Categorisation coverage**: Only categories present in `ref.remarks_category_map` contribute to Level-2 paid buckets. New mappings (e.g., `senior-investor-principal`, `junior-investor-interest`) were added via `sql/phase2/023_update_remarks_map.sql`; any unmapped remark lands in `uncategorized` and will skew variances until addressed.
 - **Temporal context**: `period_ym` is stored in every core MV but the mart views aggregate across all periods. Time slicing must be applied via external `WHERE period_ym = ...` filters or by creating derived views.
 - **Tolerance enforcement**: No SQL enforces variance thresholds; large negative variances (e.g., `-482.35`) currently pass through unflagged.

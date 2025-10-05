@@ -3,7 +3,7 @@
 A production-focused pipeline that converts FundedHere’s reconciliation workbook into a trustworthy Postgres data product. The goal is simple: ingest the four monthly extracts, preserve the spreadsheet’s business logic, and expose the Level‑1/Level‑2 views (and their tests) as fast, queryable database objects.
 
 ## Product Outcomes
-- **Spreadsheet parity**: `mart.v_level1` and `mart.v_level2a` match the Excel “Formula & Output” tabs row-for-row (Level‑1 parity is fully automated today).
+- **Spreadsheet parity**: `mart.v_level1`, `mart.v_level2a`, and the new `mart.v_level2b` replicate the Excel “Formula & Output” tabs (Level‑1 parity is fully automated; Level‑2 parity tests are in progress).
 - **Explorable data model**: inputs land in `raw.*`, mappings live in `ref.*`, typed transforms sit in `core.*`, and business consumers query `mart.*`.
 - **Automated verification**: header validation, SKU coverage, row-count parity, totals parity, and Level‑1 spreadsheet parity run in `scripts/run_test_suite.sh`.
 - **Agent-ready**: every row carries `merchant`, `sku_id`, and `period_ym` so downstream automation can request time slices without reprocessing the workbook.
@@ -58,6 +58,7 @@ The harness executes:
 
 ## Current Status
 - All 366 SKUs from the September 2025 sample are present in `mart.v_level1`/`mart.v_level2a` with totals matching the spreadsheet.
+- `mart.v_level2b` surfaces UI vs cashflow variances per fee/principal bucket; `FH Platform Fee (CF)` is currently a placeholder until the relevant VA mappings are defined.
 - Level‑1 variance guard is intentionally failing to surface unresolved business gaps (see `docs/AGENT_HANDOFF.md` for next steps).
 - Level‑2b (UI vs VA) parity work remains outstanding.
 

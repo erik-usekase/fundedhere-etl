@@ -29,15 +29,17 @@ fi
 # -X ignore ~/.psqlrc, --pset=pager=off disables pager at psql level
 PSQL=(psql -X -v ON_ERROR_STOP=1 --pset=pager=off -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE")
 
-usage(){ echo "Usage: $0 [-c SQL] [-f file.sql]"; exit 2; }
+usage(){ echo "Usage: $0 [-c SQL] [-f file.sql] [-v name=value]"; exit 2; }
 
 SQL_CMD=""
 SQL_FILE=""
+EXTRA_ARGS=()
 
-while getopts ":c:f:" opt; do
+while getopts ":c:f:v:" opt; do
   case "$opt" in
     c) SQL_CMD="$OPTARG" ;;
     f) SQL_FILE="$OPTARG" ;;
+    v) EXTRA_ARGS+=("-v" "$OPTARG") ;;
     *) usage ;;
   esac
 done
@@ -45,13 +47,13 @@ done
 export PGPASSWORD PGSSLMODE
 
 if [ -n "$SQL_CMD" ]; then
-  "${PSQL[@]}" -c "$SQL_CMD"
+  "${PSQL[@]}" "${EXTRA_ARGS[@]}" -c "$SQL_CMD"
 elif [ -n "$SQL_FILE" ]; then
   if [ ! -f "$SQL_FILE" ]; then
     echo "No such file: $SQL_FILE" >&2
     exit 2
   fi
-  "${PSQL[@]}" -f "$SQL_FILE"
+  "${PSQL[@]}" "${EXTRA_ARGS[@]}" -f "$SQL_FILE"
 else
   usage
 fi
