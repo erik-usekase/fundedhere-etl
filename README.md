@@ -74,5 +74,9 @@ Level‑2a already reproduces the Waterfall tab (paid vs expected, plus transfer
 2. Extend parity automation to Level‑2/Level‑2b outputs.
 3. Package an `etl-all` target for idempotent end-to-end runs (prep → load → mapping → refresh → tests).
 4. Harden mappings and remark categories as new merchants/periods are onboarded.
+5. Build golden fixtures and synthetic scenarios (see below) so the pipeline can be tested without fresh finance input:
+   - Curate representative SKUs from the live sample and store the expected Level‑1/Level‑2 outputs alongside their raw source slices.
+   - Generate synthetic CSVs for edge cases (only repayments, heavy transfers, duplicate inflows, missing mappings) with paired expected outputs.
+   - Add a `make test-fixtures` target that loads each fixture into a sandbox schema, runs the ETL, and diff-checks the results using the parity scripts.
 
 For a daily operations hand-off, refer to `docs/AGENT_HANDOFF.md`.
