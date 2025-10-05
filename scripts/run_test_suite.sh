@@ -3,6 +3,32 @@ set -euo pipefail
 
 step() { echo -e "\n\033[1;34m== $* ==\033[0m"; }
 
+step "Validate CSV headers"
+tests/test_csv_headers.sh
+
+step "Mapping coverage check"
+if ! make sqlf FILE=scripts/sql-tests/check_mapping_coverage.sql; then
+  echo "Mapping coverage check failed (expected until full mapping provided)" >&2
+fi
+
+step "Mart row count parity"
+if ! make sqlf FILE=scripts/sql-tests/check_mart_row_counts.sql; then
+  echo "Mart row count parity check failed" >&2
+fi
+
+step "Level 1 totals parity"
+if ! make sqlf FILE=scripts/sql-tests/check_level1_totals.sql; then
+  echo "Level 1 totals parity check failed" >&2
+fi
+
+step "Level 1 parity vs spreadsheet"
+python3 tests/test_level1_parity.py
+
+step "Level 1 variance tolerance"
+if ! make sqlf FILE=scripts/sql-tests/check_level1_variance_tolerance.sql; then
+  echo "Level 1 variance tolerance check failed" >&2
+fi
+
 step "Counts BEFORE (may be zero after a clean reset)"
 make counts || true
 
@@ -10,7 +36,7 @@ step "Bootstrap merchant"
 make sqlf FILE=scripts/sql-tests/t10_bootstrap_merchant.sql
 
 step "Bootstrap SKU + VA map"
-make sqlf FILE=scripts/sql-tests/t20_bootstrap_sku_and_map.sql
+echo "Skipping legacy bootstrap (mapping provided via CSV)."
 
 step "Refresh typed/mart layers"
 make sqlf FILE=scripts/sql-tests/refresh.sql

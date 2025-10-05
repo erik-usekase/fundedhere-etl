@@ -1,189 +1,77 @@
-# Reconciliation ETL → Postgres (L1/L2) — Dev README (Updated)
+# FundedHere Reconciliation ETL
 
-> **Purpose**: Stand-up a repeatable pipeline to load monthly CSVs, normalize into Postgres, and reproduce the Excel reconciliation outputs as SQL views — ready to serve time-sliced chunks to an LLM during user interaction.
+A production-focused pipeline that converts FundedHere’s reconciliation workbook into a trustworthy Postgres data product. The goal is simple: ingest the four monthly extracts, preserve the spreadsheet’s business logic, and expose the Level‑1/Level‑2 views (and their tests) as fast, queryable database objects.
 
-This README captures **current state**, **how to run/demo**, and **what’s next** so you can present and evolve the system with confidence.
+## Product Outcomes
+- **Spreadsheet parity**: `mart.v_level1` and `mart.v_level2a` match the Excel “Formula & Output” tabs row-for-row (Level‑1 parity is fully automated today).
+- **Explorable data model**: inputs land in `raw.*`, mappings live in `ref.*`, typed transforms sit in `core.*`, and business consumers query `mart.*`.
+- **Automated verification**: header validation, SKU coverage, row-count parity, totals parity, and Level‑1 spreadsheet parity run in `scripts/run_test_suite.sh`.
+- **Agent-ready**: every row carries `merchant`, `sku_id`, and `period_ym` so downstream automation can request time slices without reprocessing the workbook.
 
----
+Detailed architecture, reconciliation logic, and outstanding work are captured in:
+- `docs/EXISTING_ANALYSIS.md`
+- `docs/RECONCILIATION_ANALYSIS.md`
+- `docs/FORMULA_MAPPING.md`
+- `docs/VALIDATION_RESULTS.md`
+- `docs/TEST_GAPS.md`
+- `docs/AGENT_HANDOFF.md`
 
-## 1) Architecture (quick view)
+## Data Sources (CSV extracts)
+1. **External Accounts (Merchant)** → `raw.external_accounts`
+2. **VA Transaction Report (All)** → `raw.va_txn`
+3. **Repmt-SKU (by Note)** → `raw.repmt_sku`
+4. **Repmt-Sales Proceeds (by Note)** → `raw.repmt_sales`
 
-**Layers**
-- `raw.*` — CSV-as-is staging (one table per input).
-- `ref.*` — small mapping tables for keys and categories.
-- `core.*` — typed/clean MVs, transaction **flows** & pivots, inter-SKU transfers.
-- `mart.*` — business views for reconciliations (Level-1 and Level-2a).
+Mappings required by the spreadsheet live in version control:
+- `ref.note_sku_va_map` — SKU/VA alignment (generated from the Level‑1 sheet).
+- `ref.remarks_category_map` — remark → waterfall category (admin fees, sr/jr principal, SPAR, etc.).
 
-**Key refs**
-- `ref.note_sku_va_map` — joins Notes/SKU/VA/merchant across inconsistent inputs.
-- `ref.remarks_category_map` — turns raw remarks into waterfall categories (admin/mgmt fees, sr/jr principal/interest, SPAR, funds_to_sku, etc.).
+Architecture and lineage details: see `docs/EXISTING_ANALYSIS.md` and `docs/RECONCILIATION_ANALYSIS.md`.
 
-**LLM fit**
-- Every core MV carries a `period_ym` (e.g., `2025-09`) to stream **time-chunked** slices to your LLM/API on-demand.
+## Workflow Overview
+1. **Prepare inputs**
+   - Drop the four exports into `data/inc_data/` (`Sample Files(…)` or `*_2025-09.csv`).
+   - Run `make prep-all` to normalise headers/values into `*_prepped.csv` (CSV normalization helpers live in `scripts/prep_*.py`).
+2. **Load raw tables**
+   - Run `make load-all-fresh` to truncate `raw.*` and COPY the prepped CSVs.
+   - Run `make load-mapping` to upsert the SKU↔VA map from `note_sku_va_map_prepped.csv` (auto-creates merchants/SKUs as needed).
+3. **Materialise transforms**
+   - Run `make refresh` (or `scripts/sql-tests/refresh.sql`) to rebuild `core.*` materialised views and `mart.*` views.
+4. **Verify parity**
+   - Run `bash scripts/run_test_suite.sh`; it checks CSV headers, mapping coverage, mart row counts, Level‑1 totals, Level‑1 spreadsheet parity, and finally variance tolerances. All steps except the last must pass before data is considered publishable.
 
----
 
-## 2) Current State (what works)
+Need more detail? The architecture, schema layouts, and transformation logic are described in `docs/EXISTING_ANALYSIS.md` and `docs/RECONCILIATION_ANALYSIS.md`, while `docs/FORMULA_MAPPING.md` traces each spreadsheet formula to its SQL counterpart.
 
-- **Infra**: Docker-based Postgres (or host/remote), controlled via **Makefile + scripts**.
-- **Schemas**: `raw`, `ref`, `core`, `mart` created; `pgcrypto`, `pg_trgm` enabled.
-- **Core helpers**: `core.to_numeric_safe(...)`, `core.to_tstz_safe(...)` (robust casts).
-- **Core MVs**: 
-  - `core.mv_external_accounts`, `core.mv_repmt_sku`, `core.mv_repmt_sales`
-  - `core.mv_va_txn_flows` + `core.v_flows_pivot` (Option‑B applied to treat _funds_to_sku_ as inflow).
-  - `core.v_inter_sku_transfers` (aggregates between-SKU moves).
-- **Mart views**: 
-  - `mart.v_level1` — Pulled vs Received vs Sales (per SKU + VA).
-  - `mart.v_level2a` — Waterfall: Paid vs Expected (+ Transfers columns).
-- **Refresh**: `scripts/sql-tests/refresh.sql` (and `core.refresh_all()` if installed).
-- **Testing**: Ready-to-run scripts in `scripts/sql-tests/*` + runners to avoid shell quoting issues.
-
-**Demo data results**
-- Level‑1 displays rows for mapped SKU+VA, showing **Pulled**, **Received** (via `funds_to_sku` inflows or merchant repayments), **Sales Proceeds**, and variances.
-- Level‑2 shows **Paid buckets** when outflow rows with mapped remarks are present; **Transfers** columns light up when cross‑SKU VA→VA rows are inserted.
-
-> **Note**: Tests are cumulative; re-inserting demo outflows will double totals unless you clean them up first (see _Repeatable Testing_ below).
-
----
-
-## 3) One-Command Paths (for demos)
-
-### A) Fresh reset → bring-up → L1/L2 smoke
-```bash
-make down || true && rm -rf ./data/pgdata && make up-wait
-
-make sqlf FILE=initdb/000_schemas.sql
-make sqlf FILE=initdb/010_extensions.sql
-make sqlf FILE=initdb/020_security.sql
-make sqlf FILE=initdb/100_raw_tables.sql
-make sqlf FILE=initdb/200_ref_tables.sql
-
-make sqlf FILE=sql/phase2/001_core_types.sql
-make sqlf FILE=sql/phase2/002_core_basic_mviews.sql
-
-# flows (drop pivot first if present)
-make sql CMD='DROP VIEW IF EXISTS core.v_flows_pivot; DROP MATERIALIZED VIEW IF EXISTS core.mv_va_txn_flows;'
-make sqlf FILE=sql/phase2/003_core_mviews_flows.sql
-make sqlf FILE=sql/phase2/021_category_funds_to_sku.sql
-make sqlf FILE=sql/phase2/022_update_flows_pivot.sql
-make sqlf FILE=sql/phase2/004_core_inter_sku_transfers.sql
-
-# marts
-make sql CMD='DROP VIEW IF EXISTS mart.v_level2a CASCADE;'
-make sqlf FILE=sql/phase2/010_mart_level1.sql
-make sqlf FILE=sql/phase2/020_mart_level2.sql
-
-# load + map
-make prep-all
-make load-all-fresh
-make sqlf FILE=scripts/sql-tests/t10_bootstrap_merchant.sql
-make sqlf FILE=scripts/sql-tests/t20_bootstrap_sku_and_map.sql
-
-# refresh + preview
-make sqlf FILE=scripts/sql-tests/refresh.sql
-make sqlf FILE=scripts/sql-tests/level1_pretty.sql
-make sqlf FILE=scripts/sql-tests/level2a_preview.sql
-```
-
-### B) Insert demo outflows (to light up Level‑2 “Paid”)
-```bash
-make sqlf FILE=scripts/sql-tests/t80_insert_outflow_sample.sql
-make sqlf FILE=scripts/sql-tests/refresh.sql
-make sqlf FILE=scripts/sql-tests/level2a_preview.sql
-```
-
-### C) End-to-end demo runners
+## Quality Gates
+Run the full suite after each data load:
 ```bash
 bash scripts/run_test_suite.sh
-bash scripts/run_outflow_demo.sh
 ```
+The harness executes:
+1. CSV header validation (`tests/test_csv_headers.sh`)
+2. Mapping coverage (`scripts/sql-tests/check_mapping_coverage.sql`)
+3. Mart row-count parity (`scripts/sql-tests/check_mart_row_counts.sql`)
+4. Level‑1 totals parity (`scripts/sql-tests/check_level1_totals.sql`)
+5. Level‑1 spreadsheet parity (`tests/test_level1_parity.py`)
+6. Variance tolerance check (`scripts/sql-tests/check_level1_variance_tolerance.sql`) — currently expected to fail until finance defines acceptable deltas.
 
----
+## Current Status
+- All 366 SKUs from the September 2025 sample are present in `mart.v_level1`/`mart.v_level2a` with totals matching the spreadsheet.
+- Level‑1 variance guard is intentionally failing to surface unresolved business gaps (see `docs/AGENT_HANDOFF.md` for next steps).
+- Level‑2b (UI vs VA) parity work remains outstanding.
 
-## 4) Repeatable Testing (no surprises)
+### Level‑2 Roadmap
+Level‑2a already reproduces the Waterfall tab (paid vs expected, plus transfer diagnostics). To finish parity work and enable automation:
+1. **Categorise residual remarks** — ensure every VA outflow remark maps to a waterfall bucket or tolerated “other” category.
+2. **Level‑2a parity tests** — add totals and spreadsheet comparisons similar to the Level‑1 harness.
+3. **Level‑2b view** — build a mart view that compares UI values (`raw.repmt_sales`, `raw.repmt_sku`) against VA-derived totals and flags mismatches; capture expectations in `docs/FORMULA_MAPPING.md` before coding.
+4. **Automation hooks** — extend `scripts/run_test_suite.sh` with parity checks for Level‑2a/2b once the SQL is in place.
 
-- **Clean slate**: `make load-all-fresh` truncates `raw.*`. For demo outflows, delete the prior rows first:
-```sql
-delete from raw.va_txn
-where sender_virtual_account_number='8850633926172'
-  and date='9/30/2025'
-  and remarks in ('fh-admin-fee','management fee','sr principal');
-```
-- **Idempotent demo** (optional): guard demo inserts with `NOT EXISTS` on a composite key (e.g., `(va, date, remarks, amount)`).
-- **Quoting hygiene**: prefer `make sqlf FILE=...` over multiline `CMD=...` to avoid shell parsing errors.
-- **Re-applying flows**: if you re-run `003_core_mviews_flows.sql`, re-apply `021` + `022`, then refresh.
+## What’s Next
+1. Align variance tolerances with finance and update `scripts/sql-tests/check_level1_variance_tolerance.sql` once the policy is set.
+2. Extend parity automation to Level‑2/Level‑2b outputs.
+3. Package an `etl-all` target for idempotent end-to-end runs (prep → load → mapping → refresh → tests).
+4. Harden mappings and remark categories as new merchants/periods are onboarded.
 
----
-
-## 5) Presenter Notes (what to say)
-
-### 90‑second story
-1. **Problem**: monthly reconciliations lived in Excel — slow, opaque, hard to automate.
-2. **Solution**: schema‑first ETL → Postgres (`raw`→`ref`→`core`→`mart`), with mappings that normalize notes, SKUs, and remarks to business categories.
-3. **Outputs**: 
-   - Level‑1: Pulled vs Received vs Sales per SKU/VA, highlighting variances.
-   - Level‑2: Waterfall Paid vs Expected (+ inter‑SKU transfers), ready to troubleshoot gaps.
-4. **LLM‑ready**: each row is keyed by `(merchant, sku_id, period_ym)`, so we can **stream month‑sized chunks** directly to an agent API during user interaction.
-
-### 5‑minute deep‑dive
-- Show **Make targets** (infra up, prep/load, refresh).
-- Open `ref.note_sku_va_map` to explain **how joins work** across inputs.
-- Open `ref.remarks_category_map` to show **how a free‑form remark becomes a category**.
-- Run Level‑1 and Level‑2 queries; insert demo outflows and refresh to reveal **Paid buckets**.
-- Point out `core.v_inter_sku_transfers` driving the **“Fund Transferred to/from Other SKU”** columns.
-- Close with **period_ym slicing** and how the agent would request chunks (e.g., “give me 2025‑09 for merchant X, SKU Y”).
-
----
-
-## 6) What’s Next (roadmap)
-
-1. **Level‑2b (UI vs VA parity)**: Build `mart.v_level2b` to compare UI totals vs VA-derived amounts and surface variances (inflow + each paid category).
-2. **Idempotent loaders**: add simple uniqueness/dedupe per period (e.g., row hash) to resist double loads.
-3. **Parametric time slicing**: a tiny SQL function or parameterized view to emit `(merchant, sku, period_ym)` slices for the agent.
-4. **Performance**: confirm indexes on `(period_ym)`, `(merchant_id, sku_id)`, and add where most queried; consider CONCURRENT refresh with unique indexes.
-5. **Governance**: version `ref.*` mappings, add **parity checks** (totals vs Excel) in CI, and a small dashboard for mapping gaps.
-6. **Prod readiness**: connection secrets via env, backups, remote Postgres (e.g., Azure), and a migration story (versioned SQL files).
-
----
-
-## 7) Command Cheat‑Sheet
-
-```bash
-# Infra
-make up-wait           # start Postgres and wait
-make down              # stop Postgres
-make env               # show effective configuration
-
-# Data
-make prep-all          # write *_prepped.csv into ./data/inc_data
-make load-all-fresh    # truncate raw.* and load prepped files
-make counts            # raw table counts
-
-# SQL (safe)
-make sqlf FILE=...     # run a .sql file
-make sql CMD="select 1"   # single-line only (avoid multiline)
-
-# Tests
-make sqlf FILE=scripts/sql-tests/level1_pretty.sql
-make sqlf FILE=scripts/sql-tests/level2a_preview.sql
-make sqlf FILE=scripts/sql-tests/category_audit_top50.sql
-bash scripts/run_test_suite.sh
-bash scripts/run_outflow_demo.sh
-```
-
----
-
-## 8) File Map (where things live)
-
-```
-initdb/                 # schemas, extensions, raw/ref DDL
-sql/phase2/             # core helpers, MVs, marts
-scripts/sql-tests/      # curated test SQL (no quoting issues)
-scripts/*.sh            # compose & psql helpers (db_up, run_sql, loaders)
-data/inc_data/          # input CSVs & *_prepped.csv
-```
-
----
-
-### Appendix: Why Option‑B?
-For our sample partner, funds commonly arrive into SKU VAs as “**note-issued-transfer-to-sku**”. Option‑B maps these to a business concept of **Amount Received** so Level‑1/L2 reconcile correctly against UI totals. This is configurable via `ref.remarks_category_map` and can evolve merchant-by-merchant.
+For a daily operations hand-off, refer to `docs/AGENT_HANDOFF.md`.

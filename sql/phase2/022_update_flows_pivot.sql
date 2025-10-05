@@ -7,9 +7,9 @@ CREATE OR REPLACE VIEW core.v_flows_pivot AS
 SELECT
   sku_id,
   merchant_id,
-  -- Any inflow that lands in the SKU VA and is categorized as merchant_repayment or funds_to_sku
+  -- Inflows tagged as merchant repayments (true cash received from merchant)
   SUM(CASE WHEN direction='inflow'
-            AND category_code IN ('merchant_repayment','funds_to_sku')
+            AND category_code = 'merchant_repayment'
            THEN signed_amount ELSE 0 END) AS amount_received,
 
   -- Outflow buckets (positive numbers; we flip signs here)
