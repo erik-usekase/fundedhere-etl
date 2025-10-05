@@ -3,18 +3,18 @@
 A production-focused pipeline that converts FundedHere’s reconciliation workbook into a trustworthy Postgres data product. The goal is simple: ingest the four monthly extracts, preserve the spreadsheet’s business logic, and expose the Level‑1/Level‑2 views (and their tests) as fast, queryable database objects.
 
 ## Product Outcomes
-- **Spreadsheet parity**: `mart.v_level1`, `mart.v_level2a`, and the new `mart.v_level2b` replicate the Excel “Formula & Output” tabs (Level‑1 parity is fully automated; Level‑2 parity tests are in progress).
+- **Spreadsheet parity**: `mart.v_level1`, `mart.v_level2a`, and the new `mart.v_level2b` replicate the Excel “Formula & Output” tabs (Level‑1 parity is fully automated; Level‑2 parity tests are next).
 - **Explorable data model**: inputs land in `raw.*`, mappings live in `ref.*`, typed transforms sit in `core.*`, and business consumers query `mart.*`.
 - **Automated verification**: header validation, SKU coverage, row-count parity, totals parity, and Level‑1 spreadsheet parity run in `scripts/run_test_suite.sh`.
 - **Agent-ready**: every row carries `merchant`, `sku_id`, and `period_ym` so downstream automation can request time slices without reprocessing the workbook.
 
-Detailed architecture, reconciliation logic, and outstanding work are captured in:
-- `docs/EXISTING_ANALYSIS.md`
-- `docs/RECONCILIATION_ANALYSIS.md`
-- `docs/FORMULA_MAPPING.md`
-- `docs/VALIDATION_RESULTS.md`
-- `docs/TEST_GAPS.md`
-- `docs/AGENT_HANDOFF.md`
+Further reading:
+- [Architecture & workflow](docs/EXISTING_ANALYSIS.md)
+- [Reconciliation logic](docs/RECONCILIATION_ANALYSIS.md)
+- [Spreadsheet ↔ SQL mapping](docs/FORMULA_MAPPING.md)
+- [Validation log](docs/VALIDATION_RESULTS.md)
+- [Outstanding test gaps](docs/TEST_GAPS.md)
+- [Agent hand-off log](docs/AGENT_HANDOFF.md)
 
 ## Data Sources (CSV extracts)
 1. **External Accounts (Merchant)** → `raw.external_accounts`
@@ -41,7 +41,7 @@ Architecture and lineage details: see `docs/EXISTING_ANALYSIS.md` and `docs/RECO
    - Run `bash scripts/run_test_suite.sh`; it checks CSV headers, mapping coverage, mart row counts, Level‑1 totals, Level‑1 spreadsheet parity, and finally variance tolerances. All steps except the last must pass before data is considered publishable.
 
 
-Need more detail? The architecture, schema layouts, and transformation logic are described in `docs/EXISTING_ANALYSIS.md` and `docs/RECONCILIATION_ANALYSIS.md`, while `docs/FORMULA_MAPPING.md` traces each spreadsheet formula to its SQL counterpart.
+Need more detail? See [architecture](docs/EXISTING_ANALYSIS.md), [reconciliation analysis](docs/RECONCILIATION_ANALYSIS.md), and the [formula mapping](docs/FORMULA_MAPPING.md) for field-by-field logic.
 
 ## Quality Gates
 Run the full suite after each data load:
