@@ -14,6 +14,7 @@ Further reading:
 - [Spreadsheet ↔ SQL mapping](docs/FORMULA_MAPPING.md)
 - [Validation log](docs/VALIDATION_RESULTS.md)
 - [Outstanding test gaps](docs/TEST_GAPS.md)
+- [Testing guide](docs/TESTING.md)
 - [Agent hand-off log](docs/AGENT_HANDOFF.md)
 
 ## Data Sources (CSV extracts)
@@ -55,6 +56,8 @@ The harness executes:
 4. Level‑1 totals parity (`scripts/sql-tests/check_level1_totals.sql`)
 5. Level‑1 spreadsheet parity (`tests/test_level1_parity.py`)
 6. Variance tolerance check (`scripts/sql-tests/check_level1_variance_tolerance.sql`) — currently expected to fail until finance defines acceptable deltas.
+
+Full details on each check (and upcoming fixture work) live in the [Testing Guide](docs/TESTING.md).
 
 ## Current Status
 - All 366 SKUs from the September 2025 sample are present in `mart.v_level1`/`mart.v_level2a` with totals matching the spreadsheet.
