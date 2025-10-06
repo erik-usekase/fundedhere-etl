@@ -10,3 +10,6 @@ data/
 AGENTS.md
 CLAUDE.md
 sample_file.xlsx
+
+# Environment overrides
+.env
