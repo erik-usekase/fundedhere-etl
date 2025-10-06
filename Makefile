@@ -62,7 +62,7 @@ counts:
 # ──────────────────────────────────────────────────────────────────────────────
 # CSV prep (uses Python utilities under ./scripts/)
 # ──────────────────────────────────────────────────────────────────────────────
-.PHONY: preview-cols prep-external prep-vatxn prep-repmt-sku prep-repmt-sales prep-all
+.PHONY: preview-cols prep-external prep-vatxn prep-repmt-sku prep-repmt-sales prep-all prep-map
 
 preview-cols:
 > test -n "$(FILE)" || { echo "Usage: make preview-cols FILE=path.csv"; exit 2; }
@@ -86,6 +86,11 @@ prep-repmt-sales:
 
 prep-all:
 > ./scripts/prep_all.sh "$(INC_DIR)"
+
+prep-map:
+> python3 scripts/prep_note_sku_map.py \
+    --source "$(if $(strip $(SOURCE)),$(SOURCE),$(INC_DIR)/Sample Files((1) Formula & Output).csv)" \
+    --output "$(if $(strip $(OUT)),$(OUT),$(INC_DIR)/note_sku_va_map_prepped.csv)"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CSV loaders — column lists handled by scripts/load_raw.sh

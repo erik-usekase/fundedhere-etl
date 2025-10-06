@@ -78,6 +78,7 @@ When working against a managed Postgres service, ensure the IP running the ETL i
 1. **Prepare inputs**
    - Drop the four exports into `data/inc_data/` (`Sample Files(…)` or `*_2025-09.csv`).
    - Run `make prep-all` to normalise headers/values into `*_prepped.csv` (CSV normalization helpers live in `scripts/prep_*.py`).
+   - Run `make prep-map` to extract `note_sku_va_map_prepped.csv` from the Level‑1 reference export.
 2. **Load raw tables**
    - Run `make load-all-fresh` to truncate `raw.*` and COPY the prepped CSVs.
    - Run `make load-mapping` to upsert the SKU↔VA map from `note_sku_va_map_prepped.csv` (auto-creates merchants/SKUs as needed).
