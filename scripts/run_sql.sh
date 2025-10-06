@@ -26,8 +26,18 @@ else
   PGSSLMODE="${PGSSLMODE:-disable}"
 fi
 
+# Expose optional controls via custom GUCs so SQL scripts can query them.
+declare -A PSQL_GUCS
+if [ -n "${FAIL_ON_LEVEL1_VARIANCE:-}" ]; then
+  PSQL_GUCS["etlsuite.fail_on_level1_variance"]="$FAIL_ON_LEVEL1_VARIANCE"
+fi
+
 # -X ignore ~/.psqlrc, --pset=pager=off disables pager at psql level
 PSQL=(psql -X -v ON_ERROR_STOP=1 --pset=pager=off -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE")
+
+for guc in "${!PSQL_GUCS[@]}"; do
+  PSQL+=("-c" "select set_config('$guc', '${PSQL_GUCS[$guc]}', false);")
+done
 
 usage(){ echo "Usage: $0 [-c SQL] [-f file.sql] [-v name=value]"; exit 2; }
 
