@@ -4,9 +4,9 @@ DECLARE
 BEGIN
   SELECT COUNT(*) INTO outside_band
   FROM mart.v_level1
-  WHERE "Variance Pulled vs Received" < -4.0
-     OR "Variance Pulled vs Received" > 0.05
-     OR "Variance Pulled vs Received" > -2.05; -- ensure variance stays at or below -2.05 (closer to zero)
+  WHERE (COALESCE(amount_pulled,0) - COALESCE(amount_received,0)) < -4.0
+     OR (COALESCE(amount_pulled,0) - COALESCE(amount_received,0)) > 0.05
+     OR (COALESCE(amount_pulled,0) - COALESCE(amount_received,0)) > -2.05;
 
   IF outside_band > 0 THEN
     RAISE EXCEPTION 'Level 1 variance outside tolerance for % row(s)', outside_band;
