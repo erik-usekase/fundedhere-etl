@@ -44,7 +44,7 @@ Level-1 reconciliation occurs entirely in `mart.v_level1` by joining the three c
   - `Amount Pulled` = sum of `core.mv_external_accounts.buy_amount` keyed by VA number and SKU.
   - `Amount Received` = inflow sum where `category_code = 'merchant_repayment'` (top-ups such as `funds_to_sku` are broken out separately in `core.v_flows_pivot`).
   - `Sales Proceeds` = sum of UI sales from `core.mv_repmt_sales` (joined by SKU, replicated across VA rows).
-  - Variances derive from straight subtraction (Pulled − Received, Sales − Received), mirroring spreadsheet outputs (no tolerance yet enforced).
+  - Variances derive from straight subtraction (Pulled − Received, Sales − Received), mirroring the reference export (no tolerance yet enforced).
 - **Level-2a (`sql/phase2/020_mart_level2.sql`)**:
   - `Amount Received` reused from the pivot.
   - Paid buckets from `core.v_flows_pivot` appear separately and feed the all-in distributed total.

@@ -1,0 +1,36 @@
+{
+  "model": "claude-3-7-sonnet",
+  "permissions": {
+    "allow": [
+      "Bash(make *)",
+      "Bash(docker compose *)",
+      "Bash(psql*)",
+      "Bash(pg_*)",
+      "Read(./**/*.csv)",
+      "Read(./**/*.xlsx)",
+      "Read(./**/*.sql)",
+      "Read(./**/*.md)",
+      "Read(./scripts/**)",
+      "Read(./Makefile)",
+      "Edit(./**/*.sql)",
+      "Edit(./scripts/**)",
+      "Edit(./Makefile)"
+    ],
+    "deny": [
+      "Read(./secrets/**)",
+      "Read(./**/*.key)",
+      "Read(./**/*.pem)",
+      "Bash(rm -rf *)",
+      "Bash(dropdb *)",
+      "Bash(createdb *)"
+    ]
+  },
+  "env": {
+    "PGHOST": "localhost",
+    "PGPORT": "5432",
+    "PGDATABASE": "postgres",
+    "PGUSER": "postgres",
+    "PGPASSWORD": "CHANGE_ME",
+    "TZ": "UTC"
+  }
+}

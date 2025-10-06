@@ -1,17 +1,22 @@
 # FundedHere Reconciliation ETL
 
-A production-focused pipeline that converts FundedHere’s reconciliation workbook into a trustworthy Postgres data product. The goal is simple: ingest the four monthly extracts, preserve the spreadsheet’s business logic, and expose the Level‑1/Level‑2 views (and their tests) as fast, queryable database objects.
+A production-focused pipeline that converts FundedHere’s reconciliation CSV exports into a trustworthy Postgres data product. The goal is simple: ingest the four monthly extracts, preserve the business logic embedded in those files, and expose the Level‑1/Level‑2 views (and their tests) as fast, queryable database objects.
+
+## Level Overview
+- **Level 1 — Cash vs. Ledger**: aligns bank pulls, virtual-account inflows, and sales proceeds per SKU/VA pair so cash movement gaps surface immediately.
+- **Level 2a — Waterfall Execution**: breaks each repayment into management fees, admin fees, interest, principal, and SPAR buckets using the repayment expectations CSV, then compares paid vs. expected amounts.
+- **Level 2b — UI vs. Cashflow**: contrasts UI-facing repayment totals with the cash ledger to highlight category-level deltas for downstream consumers.
 
 ## Product Outcomes
-- **Spreadsheet parity**: `mart.v_level1`, `mart.v_level2a`, and the new `mart.v_level2b` replicate the Excel “Formula & Output” tabs (Level‑1 parity is fully automated; Level‑2 parity tests are next).
+- **Reference parity**: `mart.v_level1`, `mart.v_level2a`, and the new `mart.v_level2b` replicate the “Formula & Output” CSV exports (Level‑1 parity is fully automated; Level‑2 parity tests are next).
 - **Explorable data model**: inputs land in `raw.*`, mappings live in `ref.*`, typed transforms sit in `core.*`, and business consumers query `mart.*`.
-- **Automated verification**: header validation, SKU coverage, row-count parity, totals parity, and Level‑1 spreadsheet parity run in `scripts/run_test_suite.sh`.
+- **Automated verification**: header validation, SKU coverage, row-count parity, totals parity, and Level‑1 reference parity run in `scripts/run_test_suite.sh`.
 - **Agent-ready**: every row carries `merchant`, `sku_id`, and `period_ym` so downstream automation can request time slices without reprocessing the workbook.
 
 Further reading:
 - [Architecture & workflow](docs/EXISTING_ANALYSIS.md)
 - [Reconciliation logic](docs/RECONCILIATION_ANALYSIS.md)
-- [Spreadsheet ↔ SQL mapping](docs/FORMULA_MAPPING.md)
+- [CSV ↔ SQL mapping](docs/FORMULA_MAPPING.md)
 - [Validation log](docs/VALIDATION_RESULTS.md)
 - [Outstanding test gaps](docs/TEST_GAPS.md)
 - [Testing guide](docs/TESTING.md)
@@ -23,11 +28,51 @@ Further reading:
 3. **Repmt-SKU (by Note)** → `raw.repmt_sku`
 4. **Repmt-Sales Proceeds (by Note)** → `raw.repmt_sales`
 
-Mappings required by the spreadsheet live in version control:
-- `ref.note_sku_va_map` — SKU/VA alignment (generated from the Level‑1 sheet).
+Mappings required by the CSV exports live in version control:
+- `ref.note_sku_va_map` — SKU/VA alignment (generated from the Level‑1 reference export).
 - `ref.remarks_category_map` — remark → waterfall category (admin fees, sr/jr principal, SPAR, etc.).
 
 Architecture and lineage details: see `docs/EXISTING_ANALYSIS.md` and `docs/RECONCILIATION_ANALYSIS.md`.
+
+## Running Postgres for the ETL
+
+### Option A — Docker (default)
+1. Install Docker and Docker Compose.
+2. Start the stack: `scripts/db_up.sh` (or `make up`).
+3. Wait for readiness: `scripts/db_wait.sh` (or `make up-wait`).
+4. Connect locally or from your desktop using `postgresql://appuser:changeme@localhost:5433/appdb` (credentials can be overridden in `.env`).
+5. Stop the container when finished: `scripts/db_down.sh` (or `make down`).
+
+The container binds host port `5433` → container `5432`, stores data in `./data/pgdata`, and exposes CSV drop space at `./data/inc_data`.
+
+### Option B — Existing Postgres (no Docker)
+1. Install Postgres 16 (or compatible) on your server/desktop.
+2. Create the role and database:
+   ```bash
+   createuser appuser --pwprompt
+   createdb appdb --owner appuser
+   ```
+3. Copy `.env.example` to `.env`, set `DB_MODE=host` (or `remote`), and fill in `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`, and `PGSSLMODE` as appropriate.
+4. Run the bootstrap SQL against the target instance in order:
+   ```bash
+   psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -f initdb/000_schemas.sql
+   psql ... -f initdb/010_extensions.sql
+   psql ... -f initdb/020_security.sql
+   psql ... -f initdb/100_raw_tables.sql
+   psql ... -f initdb/200_ref_tables.sql
+   psql ... -f sql/phase2/001_core_types.sql
+   psql ... -f sql/phase2/002_core_basic_mviews.sql
+   psql ... -f sql/phase2/003_core_mviews_flows.sql
+   psql ... -f sql/phase2/004_core_inter_sku_transfers.sql
+   psql ... -f sql/phase2/010_mart_views.sql
+   psql ... -f sql/phase2/020_mart_level2.sql
+   psql ... -f sql/phase2/021_category_funds_to_sku.sql
+   psql ... -f sql/phase2/022_update_flows_pivot.sql
+   psql ... -f sql/phase2/023_update_remarks_map.sql
+   ```
+5. Use the existing Make targets with `DB_MODE=host`/`remote` to load data and run tests (e.g., `make load-all-fresh`, `bash scripts/run_test_suite.sh`).
+
+When working against a managed Postgres service, ensure the IP running the ETL is allowlisted and that SSL settings in `.env` match your provider.
 
 ## Workflow Overview
 1. **Prepare inputs**
@@ -39,7 +84,7 @@ Architecture and lineage details: see `docs/EXISTING_ANALYSIS.md` and `docs/RECO
 3. **Materialise transforms**
    - Run `make refresh` (or `scripts/sql-tests/refresh.sql`) to rebuild `core.*` materialised views and `mart.*` views.
 4. **Verify parity**
-   - Run `bash scripts/run_test_suite.sh`; it checks CSV headers, mapping coverage, mart row counts, Level‑1 totals, Level‑1 spreadsheet parity, and finally variance tolerances. All steps except the last must pass before data is considered publishable.
+   - Run `bash scripts/run_test_suite.sh`; it checks CSV headers, mapping coverage, mart row counts, Level‑1 totals, Level‑1 reference parity, and finally variance tolerances. All steps except the last must pass before data is considered publishable.
 
 
 Need more detail? See [architecture](docs/EXISTING_ANALYSIS.md), [reconciliation analysis](docs/RECONCILIATION_ANALYSIS.md), and the [formula mapping](docs/FORMULA_MAPPING.md) for field-by-field logic.
@@ -54,13 +99,13 @@ The harness executes:
 2. Mapping coverage (`scripts/sql-tests/check_mapping_coverage.sql`)
 3. Mart row-count parity (`scripts/sql-tests/check_mart_row_counts.sql`)
 4. Level‑1 totals parity (`scripts/sql-tests/check_level1_totals.sql`)
-5. Level‑1 spreadsheet parity (`tests/test_level1_parity.py`)
+5. Level‑1 reference parity (`tests/test_level1_parity.py`)
 6. Variance tolerance check (`scripts/sql-tests/check_level1_variance_tolerance.sql`) — currently logged as a warning until finance defines acceptable deltas. Set `FAIL_ON_LEVEL1_VARIANCE=1` in `.env` to make the suite fail on this step.
 
 Full details on each check (and upcoming fixture work) live in the [Testing Guide](docs/TESTING.md).
 
 ## Current Status
-- All 366 SKUs from the September 2025 sample are present in `mart.v_level1`/`mart.v_level2a` with totals matching the spreadsheet.
+- All 366 SKUs from the September 2025 sample are present in `mart.v_level1`/`mart.v_level2a` with totals matching the reference exports.
 - `mart.v_level2b` surfaces UI vs cashflow variances per fee/principal bucket; `FH Platform Fee (CF)` is currently a placeholder until the relevant VA mappings are defined.
 - Level‑1 variance guard is intentionally failing to surface unresolved business gaps (see `docs/AGENT_HANDOFF.md` for next steps).
 - Level‑2b (UI vs VA) parity work remains outstanding.
@@ -68,7 +113,7 @@ Full details on each check (and upcoming fixture work) live in the [Testing Guid
 ### Level‑2 Roadmap
 Level‑2a already reproduces the Waterfall tab (paid vs expected, plus transfer diagnostics). To finish parity work and enable automation:
 1. **Categorise residual remarks** — ensure every VA outflow remark maps to a waterfall bucket or tolerated “other” category.
-2. **Level‑2a parity tests** — add totals and spreadsheet comparisons similar to the Level‑1 harness.
+2. **Level‑2a parity tests** — add totals and reference CSV comparisons similar to the Level‑1 harness.
 3. **Level‑2b view** — build a mart view that compares UI values (`raw.repmt_sales`, `raw.repmt_sku`) against VA-derived totals and flags mismatches; capture expectations in `docs/FORMULA_MAPPING.md` before coding.
 4. **Automation hooks** — extend `scripts/run_test_suite.sh` with parity checks for Level‑2a/2b once the SQL is in place.
 

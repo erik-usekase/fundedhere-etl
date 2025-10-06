@@ -1,22 +1,23 @@
-# Data Quality Findings
+# Data Quality Findings (September 2025 Sample)
 
-## Coverage Gaps
-- Only one SKU/VA pair exists in `ref.note_sku_va_map` (seeded via `t10/t20` demo scripts), leaving 98 SKUs from `core.mv_repmt_sku` and `core.mv_repmt_sales` unmapped. These SKUs never appear in Level-1/Level-2 outputs, obscuring reconciliation gaps.
-- Three rows in `raw.va_txn` lack a `receiver_virtual_account_number`, preventing them from joining to `ref.note_sku_va_map` and therefore from contributing to inflow totals (`scripts/run_sql.sh` query revealed `missing_receiver_va = 3`).
+## Coverage & Completeness
+- `ref.note_sku_va_map` contains all 366 SKU↔VA pairs supplied in the mapping CSV. Any new SKU introduced in future periods must extend this file before the marts are refreshed.
+- Three virtual-account ledger rows arrive without a `receiver_virtual_account_number`. They currently fall outside Level 1 inflow totals because they cannot join to the mapping; investigate whether these rows should be attributed manually.
 
 ## Variance Outliers
-- `mart.v_level1` currently surfaces `Variance Pulled vs Received = -482.35` and `Variance Received vs Sales = -153.23`, violating the desired threshold band (greater than `-4.0`, up to `0.0x`, and at most `-2.05`). No logic exists to flag or adjust these variances.
-- Level-2 outstanding columns mirror the same raw differences; without tolerances, minor rounding noise and major gaps are indistinguishable.
+- `mart.v_level1` shows `Variance Pulled vs Received` as high as **65.20** and `Variance Received vs Sales` as low as **-120.62**. These differences mirror the gaps in the reference exports and drive the variance tolerance warning in the test suite.
+- Level 2 outstanding columns inherit the same raw differences. Without tolerances or business rules, minor rounding noise and large mismatches remain indistinguishable.
 
-## Temporal Constraints
-- `scripts/prep_all.sh` hard-codes the `2025-09` filenames; attempting to process other periods requires manual edits, risking accidental cross-period mixing.
-- `period_ym` columns exist in core MVs but mart views aggregate across all periods, making it easy to combine multiple months inadvertently.
+## Categorisation Gaps
+- `core.mv_va_txn_flows` still surfaces **724** rows with a blank remark plus several thousand transactions mapped to generic categories such as `transfer-to-another-sku` or `loan-disbursement`. These categories do not feed the Level 2 waterfall buckets and should be reviewed with Finance.
+- `FH Platform Fee (CF)` remains a placeholder zero in `mart.v_level2b` because no VA ledger remarks have been mapped to that bucket yet.
 
-## Provenance & Metadata
-- Raw loaders do not populate the `source_file` column, leaving no trace of which CSV (or run) produced a given row.
-- No checksum/hash is recorded per load; duplicate loads of the same file will reinsert data without detection.
+## Temporal Controls
+- `scripts/prep_all.sh` assumes the `*_2025-09.csv` naming convention. Loading another period currently requires manual filename overrides.
+- All mart views aggregate across every loaded `period_ym`. Analysts must filter on `period_ym` when they expect month-specific answers.
 
-## Suggested Remediations (Non-Implemented)
-- Require complete SKU/VA mapping before releasing reconciliation outputs (or surface missing mappings in a companion report).
-- Enforce variance tolerance checks during refresh to catch out-of-band results early.
-- Parameterize prep/load scripts by period and capture source filenames to maintain lineage.
+## Provenance & Lineage
+- Raw loaders omit the optional `source_file` column, so individual rows lack provenance. Capturing filenames during COPY would make audits simpler.
+- No row-level checksum exists to detect if a CSV is reloaded twice. Downstream processes rely on operators to avoid duplicate ingest.
+
+Addressing these items will help the CSV pipeline stay aligned with business reality as new periods or merchants are introduced.
