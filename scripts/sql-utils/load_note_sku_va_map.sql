@@ -8,9 +8,9 @@ BEGIN;
   \copy tmp_note_sku_va_map(note_id, sku_id, va_number) FROM '__CSV_PATH__' WITH (FORMAT csv, HEADER true);
 
   WITH sku_source AS (
-    SELECT DISTINCT s.sku_id, s.merchant_name
-    FROM core.mv_repmt_sales s
-    WHERE s.sku_id IS NOT NULL AND s.sku_id <> ''
+    SELECT DISTINCT TRIM(sku_id) AS sku_id, TRIM(merchant) AS merchant_name
+    FROM raw.repmt_sales
+    WHERE sku_id IS NOT NULL AND TRIM(sku_id) <> ''
   )
   INSERT INTO ref.sku (sku_id, merchant_id)
   SELECT t.sku_id, m.merchant_id
