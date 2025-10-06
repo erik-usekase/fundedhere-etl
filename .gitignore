@@ -3,3 +3,10 @@
 *tgz
 *gz
 data/
+
+# Ignore local agent artifacts
+.build/
+.claude/
+AGENTS.md
+CLAUDE.md
+sample_file.xlsx
