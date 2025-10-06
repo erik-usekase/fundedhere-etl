@@ -18,7 +18,7 @@ INC_DIR := $(EFFECTIVE_DATA_DIR)/inc_data
 # ──────────────────────────────────────────────────────────────────────────────
 # Lifecycle (compose or host/remote handled in scripts)
 # ──────────────────────────────────────────────────────────────────────────────
-.PHONY: prep-data up up-wait down logs env psql-host sql sqlf refresh counts
+.PHONY: prep-data up up-wait down logs env psql-host sql sqlf refresh counts initdb bootstrap
 
 prep-data:
 > mkdir -p "$(EFFECTIVE_DATA_DIR)/pgdata" "$(INC_DIR)"
@@ -58,6 +58,9 @@ refresh:
 
 counts:
 > scripts/run_sql.sh -f scripts/sql-utils/counts.sql
+
+initdb bootstrap:
+> scripts/bootstrap_db.sh
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CSV prep (uses Python utilities under ./scripts/)

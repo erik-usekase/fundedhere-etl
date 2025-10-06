@@ -79,12 +79,14 @@ When working against a managed Postgres service, ensure the IP running the ETL i
    - Drop the four exports into `data/inc_data/` (`Sample Files(…)` or `*_2025-09.csv`).
    - Run `make prep-all` to normalise headers/values into `*_prepped.csv` (CSV normalization helpers live in `scripts/prep_*.py`).
    - Run `make prep-map` to extract `note_sku_va_map_prepped.csv` from the Level‑1 reference export. The helper will auto-detect either a simplified `level1_formula_output.csv` filename or the original `Sample Files((1) Formula & Output).csv`. Override with `make prep-map SOURCE=...` if needed.
-2. **Load raw tables**
+2. **Bootstrap database (first run per environment)**
+   - Run `make initdb` (alias `make bootstrap`) to create schemas, tables, and core/mart SQL objects.
+3. **Load raw tables**
    - Run `make load-all-fresh` to truncate `raw.*` and COPY the prepped CSVs.
    - Run `make load-mapping` to upsert the SKU↔VA map from `note_sku_va_map_prepped.csv` (auto-creates merchants/SKUs as needed).
-3. **Materialise transforms**
+4. **Materialise transforms**
    - Run `make refresh` (or `scripts/sql-tests/refresh.sql`) to rebuild `core.*` materialised views and `mart.*` views.
-4. **Verify parity**
+5. **Verify parity**
    - Run `bash scripts/run_test_suite.sh`; it checks CSV headers, mapping coverage, mart row counts, Level‑1 totals, Level‑1 reference parity, and finally variance tolerances. All steps except the last must pass before data is considered publishable.
 
 
