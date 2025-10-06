@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [ -f "$PROJECT_ROOT/.env" ]; then
+  set -a
+  # shellcheck source=/dev/null
+  . "$PROJECT_ROOT/.env"
+  set +a
+fi
+
+FAIL_ON_LEVEL1_VARIANCE="${FAIL_ON_LEVEL1_VARIANCE:-0}"
+
+cd "$PROJECT_ROOT"
+
 step() { echo -e "\n\033[1;34m== $* ==\033[0m"; }
 
 step "Validate CSV headers"
@@ -26,7 +39,11 @@ python3 tests/test_level1_parity.py
 
 step "Level 1 variance tolerance"
 if ! make sqlf FILE=scripts/sql-tests/check_level1_variance_tolerance.sql; then
-  echo "Level 1 variance tolerance check failed" >&2
+  if [ "$FAIL_ON_LEVEL1_VARIANCE" = "1" ]; then
+    echo "Level 1 variance tolerance check failed" >&2
+    exit 1
+  fi
+  echo "Level 1 variance tolerance check warning (set FAIL_ON_LEVEL1_VARIANCE=1 in .env to fail)" >&2
 fi
 
 step "Counts BEFORE (may be zero after a clean reset)"

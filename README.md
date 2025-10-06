@@ -55,7 +55,7 @@ The harness executes:
 3. Mart row-count parity (`scripts/sql-tests/check_mart_row_counts.sql`)
 4. Level‑1 totals parity (`scripts/sql-tests/check_level1_totals.sql`)
 5. Level‑1 spreadsheet parity (`tests/test_level1_parity.py`)
-6. Variance tolerance check (`scripts/sql-tests/check_level1_variance_tolerance.sql`) — currently expected to fail until finance defines acceptable deltas.
+6. Variance tolerance check (`scripts/sql-tests/check_level1_variance_tolerance.sql`) — currently logged as a warning until finance defines acceptable deltas. Set `FAIL_ON_LEVEL1_VARIANCE=1` in `.env` to make the suite fail on this step.
 
 Full details on each check (and upcoming fixture work) live in the [Testing Guide](docs/TESTING.md).
 

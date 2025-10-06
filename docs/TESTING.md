@@ -22,8 +22,8 @@ The script executes the steps below in order. Any failure stops the run so the i
    - Ensures amounts pulled/received/sales in `mart.v_level1` match the source tables (after applying the SKU↔VA mapping).
 5. **Level‑1 spreadsheet parity** (`tests/test_level1_parity.py`)
    - Reads the original Excel “Formula & Output” tab and diff-checks it against `mart.v_level1` within a 0.01 tolerance.
-6. **Variance tolerance (expected failure for now)** (`scripts/sql-tests/check_level1_variance_tolerance.sql`)
-   - Flags SKUs whose Pulled vs Received variances exceed the business-defined thresholds. This currently fails intentionally because Finance has not agreed on tolerances yet.
+6. **Variance tolerance (warning by default)** (`scripts/sql-tests/check_level1_variance_tolerance.sql`)
+   - Flags SKUs whose Pulled vs Received variances exceed the business-defined thresholds. The suite downgrades this to a warning until Finance signs off on policy; set `FAIL_ON_LEVEL1_VARIANCE=1` in `.env` to reinstate a hard failure.
 
 ## 3. Running Checks Individually
 Each stage can be executed on its own; for example:
