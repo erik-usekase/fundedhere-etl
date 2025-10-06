@@ -14,8 +14,10 @@ declare -a INIT_FILES=(
 )
 
 declare -a PHASE2_FILES=(
+  "${SQL_DIR_PHASE2}/000_core_refresh_fn.sql"
   "${SQL_DIR_PHASE2}/001_core_types.sql"
   "${SQL_DIR_PHASE2}/002_core_basic_mviews.sql"
+  "${SQL_DIR_PHASE2}/002_core_mviews.sql"
   "${SQL_DIR_PHASE2}/003_core_mviews_flows.sql"
   "${SQL_DIR_PHASE2}/004_core_inter_sku_transfers.sql"
   "${SQL_DIR_PHASE2}/010_mart_views.sql"
