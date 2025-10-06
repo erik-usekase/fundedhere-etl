@@ -89,3 +89,20 @@ BEGIN
   END;
 END;
 $$;
+
+-- Safe date cast built on to_tstz_safe; returns UTC date portion.
+CREATE OR REPLACE FUNCTION core.to_date_safe(in_text text)
+RETURNS date
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+  ts timestamptz;
+BEGIN
+  ts := core.to_tstz_safe(in_text);
+  IF ts IS NULL THEN
+    RETURN NULL;
+  END IF;
+  RETURN (ts AT TIME ZONE 'UTC')::date;
+END;
+$$;
