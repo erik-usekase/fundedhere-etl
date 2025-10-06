@@ -65,7 +65,7 @@ initdb bootstrap:
 # ──────────────────────────────────────────────────────────────────────────────
 # CSV prep (uses Python utilities under ./scripts/)
 # ──────────────────────────────────────────────────────────────────────────────
-.PHONY: preview-cols prep-external prep-vatxn prep-repmt-sku prep-repmt-sales prep-all prep-map
+.PHONY: preview-cols prep-external prep-vatxn prep-repmt-sku prep-repmt-sales prep-all prep-map etl-prep etl-load etl-verify
 
 preview-cols:
 > test -n "$(FILE)" || { echo "Usage: make preview-cols FILE=path.csv"; exit 2; }
@@ -92,8 +92,23 @@ prep-all:
 
 prep-map:
 > python3 scripts/prep_note_sku_map.py \
-    --source "$(if $(strip $(SOURCE)),$(SOURCE),$(INC_DIR)/Sample Files((1) Formula & Output).csv)" \
+    --source "$(if $(strip $(SOURCE)),$(SOURCE),$(INC_DIR)/level1_reference.csv)" \
     --output "$(if $(strip $(OUT)),$(OUT),$(INC_DIR)/note_sku_va_map_prepped.csv)"
+
+etl-prep:
+> $(MAKE) prep-all
+> $(MAKE) prep-map
+
+etl-load:
+> $(MAKE) etl-prep
+> $(MAKE) initdb
+> $(MAKE) load-all-fresh
+> $(MAKE) load-mapping
+> $(MAKE) refresh
+
+etl-verify:
+> $(MAKE) etl-load
+> bash scripts/run_test_suite.sh
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CSV loaders — column lists handled by scripts/load_raw.sh

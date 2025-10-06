@@ -76,9 +76,9 @@ When working against a managed Postgres service, ensure the IP running the ETL i
 
 ## Workflow Overview
 1. **Prepare inputs**
-   - Drop the four exports into `data/inc_data/` (`Sample Files(…)` or `*_2025-09.csv`).
+   - Drop the four source exports into `data/inc_data/` (`external_accounts_2025-09.csv`, `va_txn_2025-09.csv`, `repmt_sku_2025-09.csv`, `repmt_sales_2025-09.csv`). Copy the Level‑1 “Formula & Output” reference export alongside them as `level1_reference.csv` (the tooling still falls back to the original `Sample Files((1) Formula & Output).csv` name if present).
    - Run `make prep-all` to normalise headers/values into `*_prepped.csv` (CSV normalization helpers live in `scripts/prep_*.py`).
-   - Run `make prep-map` to extract `note_sku_va_map_prepped.csv` from the Level‑1 reference export. The helper will auto-detect either a simplified `level1_formula_output.csv` filename or the original `Sample Files((1) Formula & Output).csv`. Override with `make prep-map SOURCE=...` if needed.
+   - Run `make prep-map` to extract `note_sku_va_map_prepped.csv` from the Level‑1 reference export. Override with `make prep-map SOURCE=...` if the reference lives elsewhere.
 2. **Bootstrap database (first run per environment)**
    - Run `make initdb` (alias `make bootstrap`) to create schemas, tables, and core/mart SQL objects.
 3. **Load raw tables**
@@ -88,6 +88,11 @@ When working against a managed Postgres service, ensure the IP running the ETL i
    - Run `make refresh` (or `scripts/sql-tests/refresh.sql`) to rebuild `core.*` materialised views and `mart.*` views.
 5. **Verify parity**
    - Run `bash scripts/run_test_suite.sh`; it checks CSV headers, mapping coverage, mart row counts, Level‑1 totals, Level‑1 reference parity, and finally variance tolerances. All steps except the last must pass before data is considered publishable.
+
+Shortcut targets:
+- `make etl-prep` → runs `prep-all` + `prep-map` in order.
+- `make etl-load` → runs the full pipeline (`etl-prep`, `initdb`, `load-all-fresh`, `load-mapping`, `refresh`).
+- `make etl-verify` → executes `etl-load` and then `bash scripts/run_test_suite.sh`.
 
 
 Need more detail? See [architecture](docs/EXISTING_ANALYSIS.md), [reconciliation analysis](docs/RECONCILIATION_ANALYSIS.md), and the [formula mapping](docs/FORMULA_MAPPING.md) for field-by-field logic.

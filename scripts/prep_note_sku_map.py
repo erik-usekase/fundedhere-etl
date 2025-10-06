@@ -13,7 +13,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--source",
-        default="data/inc_data/Sample Files((1) Formula & Output).csv",
+        default="data/inc_data/level1_reference.csv",
         help="Path to the Level-1 reference CSV.",
     )
     parser.add_argument(
@@ -41,22 +41,28 @@ def resolve_source(explicit: Path, out_dir: Path, quiet: bool) -> Path:
     if explicit.exists():
         return explicit
 
-    # Candidate flat filenames users may prefer.
-    flat_names = [
+    fallback_names = [
+        "level1_reference.csv",
         "level1_formula_output.csv",
         "level1_formula.csv",
         "formula_output_level1.csv",
+        "Sample Files((1) Formula & Output).csv",
+        "Sample Files((1) Formula & Output).CSV",
     ]
-    for name in flat_names:
-        candidate = out_dir / name
+    seen = {explicit.resolve(strict=False)}
+    for name in fallback_names:
+        candidate = (out_dir / name).resolve(strict=False)
+        if candidate in seen:
+            continue
+        seen.add(candidate)
         if candidate.exists():
             if not quiet:
                 print(f"Source {explicit} not found; using {candidate}")
             return candidate
 
-    # Fall back to legacy Sample Files naming or other Formula & Output CSVs.
+    # Fall back to other Formula & Output CSVs in the directory.
     formula_files = [
-        p
+        p.resolve(strict=False)
         for p in out_dir.glob("*.csv")
         if "formula" in p.name.lower() and "output" in p.name.lower()
     ]

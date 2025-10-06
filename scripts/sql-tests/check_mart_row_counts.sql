@@ -6,9 +6,9 @@ DECLARE
   lvl2b_cnt int;
 BEGIN
   SELECT COUNT(DISTINCT sku_id) INTO raw_cnt FROM core.mv_repmt_sales;
-  SELECT COUNT(DISTINCT "SKU ID") INTO lvl1_cnt FROM mart.v_level1;
-  SELECT COUNT(DISTINCT "SKU ID") INTO lvl2_cnt FROM mart.v_level2a;
-  SELECT COUNT(DISTINCT "SKU ID") INTO lvl2b_cnt FROM mart.v_level2b;
+  SELECT COUNT(DISTINCT sku_id) INTO lvl1_cnt FROM mart.v_level1;
+  SELECT COUNT(DISTINCT sku_id) INTO lvl2_cnt FROM mart.v_level2a;
+  SELECT COUNT(DISTINCT sku_id) INTO lvl2b_cnt FROM mart.v_level2b;
 
   IF lvl1_cnt <> raw_cnt THEN
     RAISE EXCEPTION 'Level 1 row count mismatch: mart=% raw=%', lvl1_cnt, raw_cnt;

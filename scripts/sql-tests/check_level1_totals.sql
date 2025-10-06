@@ -7,7 +7,7 @@ DECLARE
   lvl_sales numeric;
   raw_sales numeric;
 BEGIN
-  SELECT SUM("Amount Pulled") INTO lvl_pulled FROM mart.v_level1;
+  SELECT SUM(amount_pulled) INTO lvl_pulled FROM mart.v_level1;
 
   SELECT SUM(e.buy_amount) INTO raw_pulled
   FROM core.mv_external_accounts e
@@ -17,7 +17,7 @@ BEGIN
     RAISE EXCEPTION 'Level 1 pulled total mismatch: mart=%, raw=%', lvl_pulled, raw_pulled;
   END IF;
 
-  SELECT SUM("Amount Received") INTO lvl_received FROM mart.v_level1;
+  SELECT SUM(amount_received) INTO lvl_received FROM mart.v_level1;
 
   SELECT SUM(CASE WHEN category_code = 'merchant_repayment' AND direction='inflow'
                   THEN signed_amount ELSE 0 END)
@@ -30,7 +30,7 @@ BEGIN
 
   SELECT SUM(sales_per_sku) INTO lvl_sales
   FROM (
-    SELECT "SKU ID", MAX("Sales Proceeds") AS sales_per_sku
+    SELECT sku_id, MAX(sales_proceeds) AS sales_per_sku
     FROM mart.v_level1
     GROUP BY 1
   ) t;
