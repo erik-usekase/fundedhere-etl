@@ -23,3 +23,6 @@
 ## Observability
 - Emit row-count notices within the SQL refresh scripts (`RAISE NOTICE`) and capture them in Make target output for troubleshooting.
 - Log timing metrics per stage in Bash orchestrators (`SECONDS` variable) to highlight performance hotspots.
+
+## Integrations
+- Package a minimal Power Automate connector recipe: stand up the on-premises data gateway, register a read-only PostgreSQL connection (localhost:5433), and reuse the `make` variance queries in a templated flow. The aim is to give non-technical users a chat/alert surface without additional infrastructure—just SQL → AI summary via the existing mart views.
