@@ -34,5 +34,26 @@ services:
     networks: [appnet]
     profiles: ["db-local-nobind"]
 
+  etl:
+    build: .
+    working_dir: /workspace
+    environment:
+      DATA_DIR: /workspace/data
+      INC_DIR: /workspace/data/inc_data
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-appdb}
+      PGUSER: ${POSTGRES_USER:-appuser}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      PGSSLMODE: disable
+      TZ: ${TZ:-UTC}
+    volumes:
+      - .:/workspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [appnet]
+    profiles: ["cli"]
+
 networks:
   appnet: {}

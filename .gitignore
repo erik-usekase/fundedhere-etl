@@ -3,6 +3,7 @@
 *tgz
 *gz
 data/
+make-bin/
 
 # Ignore local agent artifacts
 .build/

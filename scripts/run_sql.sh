@@ -33,7 +33,28 @@ if [ -n "${FAIL_ON_LEVEL1_VARIANCE:-}" ]; then
 fi
 
 # -X ignore ~/.psqlrc, --pset=pager=off disables pager at psql level
-PSQL=(psql -X -v ON_ERROR_STOP=1 --pset=pager=off -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE")
+if command -v psql >/dev/null 2>&1; then
+  PSQL=(psql -X -v ON_ERROR_STOP=1 --pset=pager=off -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE")
+else
+  if [ "${DB_MODE}" = "remote" ] || [ "${DB_MODE}" = "host" ]; then
+    echo "psql is not installed locally and DB_MODE=${DB_MODE}. Install PostgreSQL client tools or switch to container DB mode." >&2
+    exit 2
+  fi
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    COMPOSE_CMD=(docker compose)
+  elif command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_CMD=(docker-compose)
+  else
+    echo "psql is not available and Docker Compose is missing. Install one of them to run SQL commands." >&2
+    exit 2
+  fi
+  PSQL=("${COMPOSE_CMD[@]}" exec -T postgres env \
+    PGPASSWORD="$PGPASSWORD" \
+    PGDATABASE="$PGDATABASE" \
+    PGUSER="$PGUSER" \
+    PGSSLMODE="$PGSSLMODE" \
+    psql -X -v ON_ERROR_STOP=1 --pset=pager=off -h localhost -p 5432 -U "$PGUSER" -d "$PGDATABASE")
+fi
 
 for guc in "${!PSQL_GUCS[@]}"; do
   PSQL+=("-c" "select set_config('$guc', '${PSQL_GUCS[$guc]}', false);")
