@@ -136,3 +136,100 @@ Level‑2a already reproduces the Waterfall tab (paid vs expected, plus transfer
    - Add a `make test-fixtures` target that loads each fixture into a sandbox schema, runs the ETL, and diff-checks the results using the parity scripts.
 
 For a daily operations hand-off, refer to `docs/AGENT_HANDOFF.md`.
+
+## Quick Start (Git Bash on Windows 11)
+### Prerequisites
+1. **Docker Desktop** – install from https://www.docker.com/products/docker-desktop/ (enable WSL 2 backend). Launch it before running the ETL.
+2. **Git for Windows** – install from https://git-scm.com/download/win (Git Bash is included).
+3. **GNU Make**
+   - Download `make-3.81-bin.zip` and `make-3.81-dep.zip` from https://gnuwin32.sourceforge.net/packages/make.htm.
+   - Extract both archives into a folder such as `C:\Users\<user>\Documents\make-win\` so that `make.exe` is in `...\make-win\bin`.
+   - Add that folder to **System → Environment Variables → Path** or export it per-session (`export PATH="$HOME/Documents/make-win/bin:$PATH"`).
+4. **Python 3.x** – install from https://www.python.org/downloads/ with “Add python.exe to PATH” checked, then copy `python.exe` → `python3.exe` in the same directory so `python3` commands succeed.
+5. **PostgreSQL CLI tools** – install the Command Line Tools (or full server) from https://www.postgresql.org/download/windows/ and add `...\PostgreSQL\<version>\bin` to PATH so `psql` is available.
+
+1. Install Docker Desktop (WSL 2 backend) and keep it running.
+2. Install Git for Windows (Git Bash), GNU make (e.g., `make-win` bundle), Python 3 (ensure PATH or copy `python.exe` to `python3.exe`), and PostgreSQL CLI tools (`psql`).
+3. Open Git Bash and run:
+   ```bash
+   git clone git@github.com-usekase:erik-usekase/fundedhere-etl.git
+   cd fundedhere-etl
+   cp config/.env.example .env
+   export PATH="$HOME/Documents/make-win/bin:$PATH"
+   ../make-win/bin/make.exe up
+   ../make-win/bin/make.exe etl-verify
+   ```
+   The command expects five input CSVs in `data/inc_data/` (`external_accounts_2025-09.csv`, `va_txn_2025-09.csv`, `repmt_sku_2025-09.csv`, `repmt_sales_2025-09.csv`, `level1_reference.csv`).
+4. Inspect results with `bash scripts/run_sql.sh -c "SELECT * FROM mart.v_level1 LIMIT 10;"` and shut down the container via `../make-win/bin/make.exe down`.
+
+### Connecting with pgAdmin or other SQL clients
+- Host: `localhost`
+- Port: `5433`
+- Database: `appdb`
+- Username: `appuser`
+- Password: `changeme` (unless you changed it in `.env`)
+- SSL: disabled (local connection)
+Make sure Docker is running and the container is up (`make up`) before launching the client.
+
+## Quick Start (Linux & macOS terminals)
+### Prerequisites
+- Docker (Engine + Compose)
+- Python 3.9+ with pip
+- GNU make
+- PostgreSQL client tools (psql)
+- Git
+
+On Ubuntu/Debian, for example:
+```bash
+sudo apt update
+sudo apt install -y docker.io docker-compose-plugin python3 python3-pip make postgresql-client git
+```
+On macOS (Homebrew):
+```bash
+brew install --cask docker
+brew install python make libpq git
+brew link --force libpq
+```
+Ensure the Docker daemon is running before starting the ETL.
+
+1. Install Docker, Python 3, GNU make, and PostgreSQL client tools via your package manager (e.g., `apt`, `brew`).
+2. In your shell:
+   ```bash
+   git clone git@github.com-usekase:erik-usekase/fundedhere-etl.git
+   cd fundedhere-etl
+   cp config/.env.example .env
+   make up
+   make etl-verify
+```
+3. Validate with `bash scripts/run_sql.sh -c "SELECT * FROM mart.v_level1 LIMIT 10;"` and stop the stack with `make down`.
+
+### Connecting with pgAdmin / DBeaver / psql
+- Host: `localhost`
+- Port: `5433`
+- Database: `appdb`
+- Username: `appuser`
+- Password: `changeme` (update `.env` if desired)
+- SSL: disabled (local dev)
+You can also bind a different port via `.env` if necessary (update `PGPORT` before `make up`).
+
+### Alternatively: Run the bundled Docker image (no local tooling)
+1. Build the image once:
+   ```bash
+   docker build -t fundedhere-etl .
+   ```
+2. Provide the CSVs (four extracts + `level1_reference.csv`) under `$(pwd)/data/inc_data/`.
+3. Run the ETL in the container:
+   ```bash
+   docker run --rm -it \
+     -v "$(pwd)/data/inc_data:/app/data/inc_data" \
+     -v "$(pwd)/data/pgdata:/app/data/pgdata" \
+     fundedhere-etl
+   ```
+   On Windows (PowerShell/Git Bash), replace `$(pwd)` with `%cd%`:
+   ```bash
+   docker run --rm -it ^
+     -v %cd%\data\inc_data:/app/data/inc_data ^
+     -v %cd%\data\pgdata:/app/data/pgdata ^
+     fundedhere-etl
+   ```
+The container bundles Python, make, and the Postgres client so you only need Docker. After the run, query the mart using `bash scripts/run_sql.sh ...` or connect to Postgres at `localhost:5433` (database `appdb`, user `appuser`, password `changeme`).
