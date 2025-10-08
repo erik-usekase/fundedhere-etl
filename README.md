@@ -45,6 +45,30 @@ Architecture and lineage details: see `docs/EXISTING_ANALYSIS.md` and `docs/RECO
 
 The container binds host port `5433` → container `5432`, stores data in `./data/pgdata`, and exposes CSV drop space at `./data/inc_data`.
 
+#### Windows 10/11: beginner-friendly Docker Desktop setup
+1. **Prepare Windows for Docker**
+   - Make sure virtualization is enabled (Task Manager → Performance tab). If it is off, enable it in BIOS/UEFI first.
+   - Follow Microsoft’s guide to install/upgrade to [WSL 2](https://learn.microsoft.com/windows/wsl/install). This installs the lightweight Linux layer Docker Desktop uses.
+2. **Install Docker Desktop**
+   - Download the official installer from [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/).
+   - Run the installer and leave “Use WSL 2 backend” checked. Accept the defaults; when prompted, log out/in to finish installation.
+3. **Launch Docker Desktop**
+   - Start Docker Desktop from the Start Menu. Wait until the whale icon in the system tray shows “Docker Desktop is running.” The first start can take a couple of minutes.
+   - (Optional) Sign in with a Docker account if prompted, or choose “Skip for now.”
+4. **Install Git Bash (for shell commands)**
+   - Download Git for Windows from [git-scm.com/download/win](https://git-scm.com/download/win) and install with the default options. This provides the Git Bash terminal used in the commands below.
+5. **Verify Docker is ready**
+   - Open Git Bash and run `docker version`. If both the *Client* and *Server* sections return without errors, you are ready to run the project containers.
+
+#### First project run on Windows (simple walkthrough)
+1. Download the repository (either clone with Git Bash or use the green **Code → Download ZIP** button on GitHub and extract it to a convenient folder, e.g., `C:\Users\you\Documents\fundedhere-etl`).
+2. Open Git Bash, change into the project folder (`cd /c/Users/you/Documents/fundedhere-etl`), and copy the environment template: `cp config/.env.example .env`.
+3. Start Docker Desktop (if it is not already running), then in Git Bash execute `./scripts/db_up.sh`. The script will create the Postgres container the ETL uses.
+4. Watch the terminal output. When `Database is ready` appears (or after running `./scripts/db_wait.sh`), you can connect from any SQL client using the connection string printed in the script.
+5. When you are finished, stop the container with `./scripts/db_down.sh` or press “Stop” next to the container in Docker Desktop.
+
+Tip: if Git Bash reports `permission denied` on the `.sh` scripts, run `git config core.autocrlf false` before cloning so Windows line endings do not interfere. Alternatively, execute the same operations with `make up`, `make up-wait`, and `make down` (GNU Make instructions below).
+
 ### Option B — Existing Postgres (no Docker)
 1. Install Postgres 16 (or compatible) on your server/desktop.
 2. Create the role and database:
