@@ -6,6 +6,10 @@ import subprocess
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
+
+BASH_PATH = os.getenv('BASH_PATH', 'bash')
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
 REFERENCE_ENV = os.getenv('LEVEL1_REFERENCE_CSV')
 REFERENCE_CANDIDATES = [
     Path(REFERENCE_ENV) if REFERENCE_ENV else None,
@@ -85,7 +89,8 @@ COPY (
   ORDER BY 1, 2
 ) TO STDOUT WITH CSV HEADER
 """
-    res = subprocess.run(['scripts/run_sql.sh', '-c', query], capture_output=True, text=True, check=True)
+    cmd = [BASH_PATH, 'scripts/run_sql.sh', '-c', query]
+    res = subprocess.run(cmd, capture_output=True, text=True, check=True, cwd=PROJECT_ROOT)
     reader = csv.DictReader(io.StringIO(res.stdout))
     return list(reader)
 
