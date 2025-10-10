@@ -182,3 +182,12 @@ clean-cache:
 
 clean-reset: clean-cache
 > echo "Workspace cache cleaned. Database files in $(EFFECTIVE_DATA_DIR) remain intact."
+
+.PHONY: preview-level1 preview-level1-sku
+
+preview-level1:
+> scripts/run_sql.sh -c "SELECT \"SKU ID\", \"Account Number\", \"Merchant\", ROUND(\"Amount Pulled\",2) AS amount_pulled, ROUND(\"Amount Received\",2) AS amount_received, ROUND(\"Sales Proceeds\",2) AS sales_proceeds FROM mart.v_level1 ORDER BY ABS(\"Amount Received\" - \"Sales Proceeds\") DESC LIMIT 20;"
+
+preview-level1-sku:
+> test -n "$(SKU)" || { echo "Usage: make preview-level1-sku SKU='SKU ID'"; exit 2; }
+> scripts/run_sql.sh -c "SELECT * FROM mart.v_level1 WHERE \"SKU ID\" = '$(SKU)';"

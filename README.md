@@ -88,6 +88,44 @@ The container binds host port `5433` → container `5432`, stores data in `./dat
   make down                     # stop Postgres when finished
   ```
   Ensure the four raw CSV exports (`external_accounts_*.csv`, `va_txn_*.csv`, `repmt_sku_*.csv`, `repmt_sales_*.csv`) and the Level‑1 reference export (`level1_reference.csv`, etc.) are in `data/inc_data/` before running the verify target.
+
+### Level‑1 query cheat sheet
+
+Once the pipeline has loaded, a few handy queries help verify Level‑1 results in pgAdmin/psql:
+
+```sql
+-- Top SKUs by sales vs received variance
+SELECT
+    "SKU ID",
+    "Merchant",
+    ROUND("Amount Pulled", 2)   AS amount_pulled,
+    ROUND("Amount Received", 2) AS amount_received,
+    ROUND("Sales Proceeds", 2)  AS sales_proceeds,
+    ROUND("Sales Proceeds" - "Amount Received", 2) AS variance_sales
+FROM mart.v_level1
+ORDER BY ABS("Sales Proceeds" - "Amount Received") DESC
+LIMIT 20;
+
+-- Inspect a single SKU / VA pair
+SELECT *
+FROM mart.v_level1
+WHERE "SKU ID" = 'BONE CUTTER-1288-636-hXKMZMU5NF'
+  AND "Account Number" = '8850633715110';
+
+-- Merchant roll-up
+SELECT
+    "Merchant",
+    ROUND(SUM("Amount Pulled"), 2)   AS total_pulled,
+    ROUND(SUM("Amount Received"), 2) AS total_received,
+    ROUND(SUM("Sales Proceeds"), 2)  AS total_sales
+FROM mart.v_level1
+GROUP BY 1
+ORDER BY ABS(SUM("Sales Proceeds" - "Amount Received")) DESC;
+```
+
+Shortcuts:
+- `make preview-level1` – runs the first query above from the CLI.
+- `make preview-level1-sku SKU='BONE CUTTER-1288-636-hXKMZMU5NF'` – shows the Level‑1 row(s) for that SKU.
 - **Fresh install or deleted `pgdata`**: drop the four source CSVs (plus the Level‑1 reference export) into `data/inc_data/`, then run:
   ```bash
   make up
