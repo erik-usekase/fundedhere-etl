@@ -96,31 +96,31 @@ Once the pipeline has loaded, a few handy queries help verify Level‑1 results 
 ```sql
 -- Top SKUs by sales vs received variance
 SELECT
-    "SKU ID",
-    "Merchant",
-    ROUND("Amount Pulled", 2)   AS amount_pulled,
-    ROUND("Amount Received", 2) AS amount_received,
-    ROUND("Sales Proceeds", 2)  AS sales_proceeds,
-    ROUND("Sales Proceeds" - "Amount Received", 2) AS variance_sales
+    sku_id,
+    merchant,
+    ROUND(amount_pulled, 2)   AS amount_pulled,
+    ROUND(amount_received, 2) AS amount_received,
+    ROUND(sales_proceeds, 2)  AS sales_proceeds,
+    ROUND(sales_proceeds - amount_received, 2) AS variance_sales
 FROM mart.v_level1
-ORDER BY ABS("Sales Proceeds" - "Amount Received") DESC
+ORDER BY ABS(sales_proceeds - amount_received) DESC
 LIMIT 20;
 
 -- Inspect a single SKU / VA pair
 SELECT *
 FROM mart.v_level1
-WHERE "SKU ID" = 'BONE CUTTER-1288-636-hXKMZMU5NF'
-  AND "Account Number" = '8850633715110';
+WHERE sku_id = 'BONE CUTTER-1288-636-hXKMZMU5NF'
+  AND account_number = '8850633715110';
 
 -- Merchant roll-up
 SELECT
-    "Merchant",
-    ROUND(SUM("Amount Pulled"), 2)   AS total_pulled,
-    ROUND(SUM("Amount Received"), 2) AS total_received,
-    ROUND(SUM("Sales Proceeds"), 2)  AS total_sales
+    merchant,
+    ROUND(SUM(amount_pulled), 2)   AS total_pulled,
+    ROUND(SUM(amount_received), 2) AS total_received,
+    ROUND(SUM(sales_proceeds), 2)  AS total_sales
 FROM mart.v_level1
 GROUP BY 1
-ORDER BY ABS(SUM("Sales Proceeds" - "Amount Received")) DESC;
+ORDER BY ABS(SUM(sales_proceeds - amount_received)) DESC;
 ```
 
 Shortcuts:
