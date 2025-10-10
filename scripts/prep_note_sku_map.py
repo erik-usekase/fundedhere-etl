@@ -88,7 +88,13 @@ def resolve_source(explicit: Path, out_dir: Path, quiet: bool) -> Path:
 
 def find_header_index(rows: Iterable[List[str]]) -> int:
     for idx, row in enumerate(rows):
-        if len(row) >= 2 and row[0].strip().lower() == "sku id" and row[1].strip().lower() in {"account number", "virtual account"}:
+        if not row:
+            continue
+        first = row[0].strip().lower()
+        if first == "sku id":
+            return idx
+        # fallback: rows like "[category name], SKU ID"
+        if len(row) > 1 and row[1].strip().lower() == "sku id":
             return idx
     raise SystemExit("Could not locate 'SKU ID' header in reference export.")
 
@@ -98,12 +104,15 @@ def extract_pairs(rows: List[List[str]], start_idx: int) -> List[tuple[str, str]
     for row in rows[start_idx + 1 :]:
         if len(row) < 2:
             break
-        sku = row[0].strip()
-        va = row[1].strip()
+        sku = row[0].strip() or row[1].strip()
+        va = row[1].strip() if row[0].strip() else (row[2].strip() if len(row) > 2 else "")
         if not sku or not va:
             break
         if sku.lower().startswith("total"):
             break
+        # If "SKU ID" was in column 1, shift properly
+        if row[1].strip().lower() == "account number":
+            continue
         pairs.append((sku, va))
     if not pairs:
         raise SystemExit("No SKU/VA pairs found beneath header row.")
