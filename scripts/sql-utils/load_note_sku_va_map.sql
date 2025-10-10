@@ -17,7 +17,11 @@
     LEFT JOIN (
       SELECT DISTINCT TRIM(sku_id) AS sku_id, TRIM(merchant) AS merchant_name
       FROM raw.repmt_sales
-      WHERE sku_id IS NOT NULL AND TRIM(sku_id) <> ''
+      WHERE sku_id IS NOT NULL AND TRIM(sku_id) <> '' AND merchant IS NOT NULL AND TRIM(merchant) <> ''
+      UNION
+      SELECT DISTINCT TRIM(sku_id) AS sku_id, TRIM(merchant) AS merchant_name
+      FROM raw.repmt_sku
+      WHERE sku_id IS NOT NULL AND TRIM(sku_id) <> '' AND merchant IS NOT NULL AND TRIM(merchant) <> ''
     ) src ON src.sku_id = TRIM(t.sku_id)
     LEFT JOIN ref.merchant m ON lower(m.merchant_name) = lower(src.merchant_name)
     WHERE TRIM(t.sku_id) IS NOT NULL AND TRIM(t.sku_id) <> ''
