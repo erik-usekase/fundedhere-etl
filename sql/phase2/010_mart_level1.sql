@@ -44,9 +44,9 @@ SELECT
   u.merchant_name                          AS "Merchant",
   COALESCE(p.amount_pulled, 0)             AS "Amount Pulled",
   COALESCE(r.amount_received, 0)           AS "Amount Received",
-  (COALESCE(p.amount_pulled,0)-COALESCE(r.amount_received,0))  AS "Variance",
+  (COALESCE(p.amount_pulled,0)-COALESCE(r.amount_received,0))  AS "Variance Pulled vs Received",
   COALESCE(s.sales_proceeds, 0)            AS "Sales Proceeds",
-  (COALESCE(s.sales_proceeds,0)-COALESCE(r.amount_received,0)) AS "Variance"
+  (COALESCE(s.sales_proceeds,0)-COALESCE(r.amount_received,0)) AS "Variance Received vs Sales"
 FROM universe u
 LEFT JOIN pulled p   ON p.sku_id = u.sku_id AND p.account_number = u.account_number
 LEFT JOIN received r ON r.sku_id = u.sku_id AND r.account_number = u.account_number
