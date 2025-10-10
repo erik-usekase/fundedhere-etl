@@ -77,6 +77,17 @@ The container binds host port `5433` → container `5432`, stores data in `./dat
 - Test previews are suppressed by default to keep output concise. Set `SHOW_PREVIEW=1` when invoking a target (e.g., `SHOW_PREVIEW=1 make container-etl-verify`) to print Level‑1/Level‑2 samples and audits.
 - If Docker’s build cache becomes corrupt (common after Docker Desktop upgrades on Windows/macOS), run `make docker-clean` from Git Bash/Terminal. The helper calls `docker buildx prune`, `docker builder prune`, and `docker system prune --volumes` with force flags to wipe stale layers before rebuilding the tool image.
 - To reset the workspace without losing raw data: `make down` (stop containers) followed by `make clean-reset`. This removes generated CSVs, test fixtures, `__pycache__`, and `.pytest_cache` while leaving `data/pgdata` untouched so you can keep database state if desired.
+- **Fresh checkout / update commands** (run from the repository root after cloning or pulling):
+  ```bash
+  git pull                      # or git clone <repo-url>
+  make clean-reset              # optional – clears *_prepped.csv and caches
+  make docker-clean             # optional – only if Docker reports snapshot errors
+  make up
+  make up-wait
+  SHOW_PREVIEW=1 QUIET=0 make container-etl-verify   # loads data + runs tests
+  make down                     # stop Postgres when finished
+  ```
+  Ensure the four raw CSV exports (`external_accounts_*.csv`, `va_txn_*.csv`, `repmt_sku_*.csv`, `repmt_sales_*.csv`) and the Level‑1 reference export (`level1_reference.csv`, etc.) are in `data/inc_data/` before running the verify target.
 - **Fresh install or deleted `pgdata`**: drop the four source CSVs (plus the Level‑1 reference export) into `data/inc_data/`, then run:
   ```bash
   make up
