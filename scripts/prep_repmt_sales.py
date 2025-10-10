@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import sys, csv, json
+import sys, csv, json, os
 
 import re
 def norm(s):
@@ -68,6 +68,7 @@ def main():
         with open(out, 'w', newline='', encoding='utf-8') as g:
             w = csv.writer(g); w.writerow(CANON)
             for row in r: w.writerow([row.get(colmap[c], "") for c in CANON])
-    print(f"Wrote {out}")
+    if os.getenv("QUIET", "1") == "0":
+        print(f"Wrote {out}")
 if __name__ == "__main__":
     main()

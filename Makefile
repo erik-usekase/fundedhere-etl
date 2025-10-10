@@ -157,3 +157,28 @@ test-health:
 
 test-level1:
 > scripts/run_sql.sh -f scripts/sql-tests/level1_pretty.sql
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Container wrappers (ensure zero local Python/psql dependency)
+# ──────────────────────────────────────────────────────────────────────────────
+.PHONY: container-% docker-clean clean-cache clean-reset
+
+container-%:
+> ./scripts/etl_make.sh $*
+
+docker-clean:
+> echo "Pruning Docker caches (buildx, builder, system)..."
+> docker buildx prune --all --force || true
+> docker builder prune --all --force || true
+> docker system prune --volumes --force || true
+
+clean-cache:
+> echo "Removing Python caches..."
+> find . -type d -name '__pycache__' -prune -exec rm -rf {} + || true
+> rm -rf .pytest_cache || true
+> echo "Removing generated test fixtures and prepped CSVs..."
+> rm -f data/inc_data/*_prepped.csv data/inc_data/note_sku_va_map_prepped.csv || true
+> rm -f tests/fixtures/level1_expected.csv || true
+
+clean-reset: clean-cache
+> echo "Workspace cache cleaned. Database files in $(EFFECTIVE_DATA_DIR) remain intact."

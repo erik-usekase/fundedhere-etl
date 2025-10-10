@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
-if [ -f ".env" ]; then set -a; . ./.env; set +a; fi
+if [ -z "${SKIP_ENV_FILE:-}" ] && [ -f ".env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
 
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   COMPOSE_CMD=(docker compose)

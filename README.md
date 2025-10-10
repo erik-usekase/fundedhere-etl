@@ -28,6 +28,17 @@ Further reading:
 3. **Repmt-SKU (by Note)** → `raw.repmt_sku`
 4. **Repmt-Sales Proceeds (by Note)** → `raw.repmt_sales`
 
+Place the monthly CSV exports in `data/inc_data/` before running the ETL. The prep step looks for the newest files matching the following patterns (or you can set the environment variables shown to point to specific filenames/paths):
+
+| Source | Default glob (in `data/inc_data/`) | Override env var |
+|--------|------------------------------------|------------------|
+| External Accounts | `external_accounts_*.csv` | `EXTERNAL_ACCOUNTS_SRC` |
+| VA Transaction Report | `va_txn_*.csv` | `VA_TXN_SRC` |
+| Repmt-SKU (by Note) | `repmt_sku_*.csv` | `REPMT_SKU_SRC` |
+| Repmt-Sales Proceeds (by Note) | `repmt_sales_*.csv` | `REPMT_SALES_SRC` |
+
+If a required file is missing, the `prep-all` stage exits with an explicit error so the pipeline never progresses with empty tables.
+
 Mappings required by the CSV exports live in version control:
 - `ref.note_sku_va_map` — SKU/VA alignment (generated from the Level‑1 reference export).
 - `ref.remarks_category_map` — remark → waterfall category (admin fees, sr/jr principal, SPAR, etc.).
@@ -61,16 +72,28 @@ The container binds host port `5433` → container `5432`, stores data in `./dat
    - Open Git Bash and run `docker version`. If both the *Client* and *Server* sections return without errors, you are ready to run the project containers.
 
 **Run project commands inside Docker**
-- Use `./scripts/etl_make.sh <target>` to execute any Make target (e.g., `./scripts/etl_make.sh etl-verify`) inside the container image. No local Python, `psql`, or GNU Make installation is required.
-- The helper script automatically builds the tool image and mounts your working copy so edits on the host are immediately visible in the container.
+- Use `make container-<target>` (for example `make container-etl-verify`) to run any Make goal inside the tool container. The wrapper delegates to Docker, so the only host runtime you need is Docker + GNU Make; it auto-starts Postgres (equivalent to `make up && make up-wait`) when needed and leaves it running on `localhost:5433` so you can inspect results with pgAdmin or application services. Run `make down` when you are finished (set `AUTO_DB_SHUTDOWN=1` to restore the previous auto-stop behaviour).
+- Alternatively, call `./scripts/etl_make.sh <target>` directly (e.g., `./scripts/etl_make.sh etl-verify`); both options mount the repo into the container and reuse the same image cache.
+- Test previews are suppressed by default to keep output concise. Set `SHOW_PREVIEW=1` when invoking a target (e.g., `SHOW_PREVIEW=1 make container-etl-verify`) to print Level‑1/Level‑2 samples and audits.
+- If Docker’s build cache becomes corrupt (common after Docker Desktop upgrades on Windows/macOS), run `make docker-clean` from Git Bash/Terminal. The helper calls `docker buildx prune`, `docker builder prune`, and `docker system prune --volumes` with force flags to wipe stale layers before rebuilding the tool image.
+- To reset the workspace without losing raw data: `make down` (stop containers) followed by `make clean-reset`. This removes generated CSVs, test fixtures, `__pycache__`, and `.pytest_cache` while leaving `data/pgdata` untouched so you can keep database state if desired.
+- **Fresh install or deleted `pgdata`**: drop the four source CSVs (plus the Level‑1 reference export) into `data/inc_data/`, then run:
+  ```bash
+  make up
+  make up-wait
+  make container-etl-verify
+  ```
+  The verify target expands to `etl-prep` → `initdb` → `load-all-fresh` → `load-mapping` → `refresh` → tests, so the database is rebuilt from scratch and parity checks re-run every time. If the database is already loaded and you just want the tests, use `SHOW_PREVIEW=1 make container-etl-verify` for a detailed report without reloading.
 
 #### First project run on Windows (simple walkthrough)
 1. Download the repository (either clone with Git Bash or use the green **Code → Download ZIP** button on GitHub and extract it to a convenient folder, e.g., `C:\Users\you\Documents\fundedhere-etl`).
 2. Open Git Bash, change into the project folder (`cd /c/Users/you/Documents/fundedhere-etl`), and copy the environment template: `cp config/.env.example .env` (optional if you stick to defaults).
-3. Start Docker Desktop (if it is not already running), then in Git Bash execute `./scripts/db_up.sh`. The script provisions the Postgres container that stores all ETL results.
-4. Run `./scripts/db_wait.sh` to wait for Postgres to turn healthy, followed by `./scripts/etl_make.sh etl-verify` to prep inputs, load them, refresh the marts, and execute the regression tests—everything runs inside Docker.
-5. Inspect results with `./scripts/etl_make.sh sql CMD="select * from mart.v_level1 limit 5;"` or via your favourite SQL client.
-6. When you are finished, stop the container with `./scripts/db_down.sh` or press “Stop” next to the container in Docker Desktop.
+3. Start Docker Desktop (if it is not already running), then in Git Bash execute `make up` to provision the Postgres container that stores all ETL results.
+4. Run `make up-wait` to wait for Postgres to turn healthy, followed by `make container-etl-verify` to prep inputs, load them, refresh the marts, and execute the regression tests—everything runs inside Docker. (If you skip steps 3–4, `make container-etl-verify` will automatically start and wait for Postgres before running, and it leaves the database up afterward so you can inspect it.)
+5. Inspect results with `make container-sql CMD="select * from mart.v_level1 limit 5;"` or connect via pgAdmin/DB client.
+6. When you are finished, stop the container with `make down` (or run with `AUTO_DB_SHUTDOWN=1 make container-etl-verify` to have the wrapper clean up automatically).
+
+**TIP:** to load new monthly data, replace the four source CSVs in `data/inc_data/` (and the Level‑1 reference export) and rerun `make container-etl-verify`. The pipeline is idempotent: it truncates and reloads `raw.*`, refreshes all downstream objects, and replays the parity tests.
 
 Tip: if Git Bash reports `permission denied` on the `.sh` scripts, run `git config core.autocrlf false` before cloning so Windows line endings do not interfere. Alternatively, execute the same operations with `make up`, `make up-wait`, and `make down` (GNU Make instructions below).
 
@@ -181,13 +204,14 @@ For a daily operations hand-off, refer to `docs/AGENT_HANDOFF.md`.
    ```
 3. Start the database and run the end-to-end pipeline fully inside Docker:
    ```bash
-   ./scripts/db_up.sh
-   ./scripts/db_wait.sh
-   ./scripts/etl_make.sh etl-verify
+   make up
+   make up-wait
+   make container-etl-verify
    ```
    Place the five CSV inputs in `data/inc_data/` before running `etl-verify` (`external_accounts_2025-09.csv`, `va_txn_2025-09.csv`, `repmt_sku_2025-09.csv`, `repmt_sales_2025-09.csv`, `level1_reference.csv`).
-4. Inspect results with `./scripts/etl_make.sh sql CMD="select * from mart.v_level1 limit 10;"` or connect via pgAdmin using the settings below.
-5. Shut down the stack when finished: `./scripts/db_down.sh`.
+   Tip: You can jump straight to `make container-etl-verify`—it will spin up and wait for Postgres automatically—but keeping the database up separately is handy when you plan to run multiple commands in a row.
+4. Inspect results with `make container-sql CMD="select * from mart.v_level1 limit 10;"` or connect via pgAdmin using the settings below.
+5. Shut down the stack when finished: `make down`.
 
 ### Connecting with pgAdmin or other SQL clients
 - Host: `localhost`
@@ -196,7 +220,11 @@ For a daily operations hand-off, refer to `docs/AGENT_HANDOFF.md`.
 - Username: `appuser`
 - Password: `changeme` (unless you changed it in `.env`)
 - SSL: disabled (local connection)
-Make sure Docker is running and the container is up (`./scripts/db_up.sh`) before launching the client.
+Make sure Docker is running and the container is up (`make up`) before launching the client.
+
+### Host data directory
+- By default the project stores state and incoming CSVs in `./data` (see `DATA_DIR` in `.env`). The folder is created automatically the first time you run `make up` or `make container-...` and is bind-mounted into the containers.
+- To use a different location, set `DATA_DIR=/path/to/storage` in your environment or `.env` before invoking the commands. All helper scripts respect the setting and will create the necessary `pgdata` and `inc_data` subdirectories if they do not already exist.
 
 ## Quick Start (Linux & macOS terminals)
 ### Prerequisites
@@ -213,12 +241,12 @@ Ensure the Docker daemon is running before starting the ETL.
    ```
 2. Start Postgres and run the pipeline in the tool container:
    ```bash
-   ./scripts/db_up.sh
-   ./scripts/db_wait.sh
-   ./scripts/etl_make.sh etl-verify
+   make up
+   make up-wait
+   make container-etl-verify
    ```
-3. Issue ad-hoc SQL with `./scripts/etl_make.sh sql CMD="select * from mart.v_level1 limit 10;"` or use your preferred client.
-4. Stop the stack: `./scripts/db_down.sh`.
+3. Issue ad-hoc SQL with `make container-sql CMD="select * from mart.v_level1 limit 10;"` or use your preferred client.
+4. Stop the stack: `make down`.
 
 ### Connecting with pgAdmin / DBeaver / psql
 - Host: `localhost`

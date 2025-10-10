@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import sys
 from pathlib import Path
 from typing import Iterable, List
@@ -46,6 +47,8 @@ def resolve_source(explicit: Path, out_dir: Path, quiet: bool) -> Path:
         "level1_formula_output.csv",
         "level1_formula.csv",
         "formula_output_level1.csv",
+        "formula_and_output_level1.csv",
+        "formula_output.csv",
         "Sample Files((1) Formula & Output).csv",
         "Sample Files((1) Formula & Output).CSV",
     ]
@@ -119,17 +122,19 @@ def write_output(path: Path, pairs: List[tuple[str, str]]) -> None:
 
 def main() -> None:
     args = parse_args()
+    env_quiet = os.getenv("QUIET", "1") != "0"
+    quiet = args.quiet or env_quiet
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    source_path = resolve_source(Path(args.source), output_path.parent, args.quiet)
+    source_path = resolve_source(Path(args.source), output_path.parent, quiet)
 
     rows = read_rows(source_path)
     header_idx = find_header_index(rows)
     pairs = extract_pairs(rows, header_idx)
 
     write_output(output_path, pairs)
-    if not args.quiet:
+    if not quiet:
         print(f"Wrote {len(pairs)} SKU<->VA mappings to {output_path}")
 
 

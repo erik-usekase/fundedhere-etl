@@ -90,7 +90,26 @@ COPY (
 ) TO STDOUT WITH CSV HEADER
 """
     cmd = [BASH_PATH, 'scripts/run_sql.sh', '-c', query]
-    res = subprocess.run(cmd, capture_output=True, text=True, check=True, cwd=PROJECT_ROOT)
+    env = os.environ.copy()
+    env['PGHOST'] = 'postgres'
+    env['PGPORT'] = '5432'
+    env['PGDATABASE'] = env.get('PGDATABASE', 'appdb')
+    env['PGUSER'] = env.get('PGUSER', 'appuser')
+    env['PGPASSWORD'] = env.get('PGPASSWORD', 'changeme')
+    env['PGSSLMODE'] = 'disable'
+    env['SKIP_ENV_FILE'] = '1'
+    try:
+        res = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=PROJECT_ROOT,
+            env=env,
+        )
+    except subprocess.CalledProcessError as exc:
+        message = exc.stderr.strip() or exc.stdout.strip()
+        raise RuntimeError(f"Level 1 SQL query failed: {message}") from exc
     reader = csv.DictReader(io.StringIO(res.stdout))
     return list(reader)
 

@@ -1,0 +1,23 @@
+.# Git & VCS
+.git
+.gitignore
+.claude
+
+# Local runtime artifacts
+data/pgdata
+data/inc_data
+data/tmp
+data/*.log
+
+# Python cache / build outputs
+__pycache__
+*.pyc
+*.pyo
+*.pytest_cache
+
+# Misc tooling
+.env
+.venv
+.mypy_cache
+.DS_Store
+Thumbs.db

@@ -1,43 +1,61 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Load .env if present
-if [ -f ".env" ]; then set -a; . ./.env; set +a; fi
+# Optionally load .env (skipped when SKIP_ENV_FILE=1 is present or PGHOST already defined)
+if [ -z "${SKIP_ENV_FILE:-}" ] && [ -f ".env" ] && [ -z "${PGHOST:-}" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
 
 DB_MODE="${DB_MODE:-container-bind}"
 
-# Always print straight to the shell (no pager) and ignore ~/.psqlrc
+# Respect explicit PG* overrides; otherwise choose sensible defaults per mode
+if [ -z "${PGHOST:-}" ] || [ -z "${PGPORT:-}" ]; then
+  case "$DB_MODE" in
+    remote)
+      PGHOST="${PGHOST:-${REMOTE_PGHOST:-localhost}}"
+      PGPORT="${PGPORT:-${REMOTE_PGPORT:-5432}}"
+      PGDATABASE="${PGDATABASE:-${REMOTE_PGDATABASE:-appdb}}"
+      PGUSER="${PGUSER:-${REMOTE_PGUSER:-appuser}}"
+      PGPASSWORD="${PGPASSWORD:-${REMOTE_PGPASSWORD:-changeme}}"
+      PGSSLMODE="${PGSSLMODE:-${REMOTE_PGSSLMODE:-require}}"
+      ;;
+    host)
+      PGHOST="${PGHOST:-localhost}"
+      PGPORT="${PGPORT:-5433}"
+      PGDATABASE="${PGDATABASE:-appdb}"
+      PGUSER="${PGUSER:-appuser}"
+      PGPASSWORD="${PGPASSWORD:-changeme}"
+      PGSSLMODE="${PGSSLMODE:-disable}"
+      ;;
+    container-nobind|container-bind|*)
+      PGHOST="${PGHOST:-postgres}"
+      PGPORT="${PGPORT:-5432}"
+      PGDATABASE="${PGDATABASE:-appdb}"
+      PGUSER="${PGUSER:-appuser}"
+      PGPASSWORD="${PGPASSWORD:-changeme}"
+      PGSSLMODE="${PGSSLMODE:-disable}"
+      ;;
+  esac
+fi
+
 export PAGER=cat
 export PSQL_PAGER=cat
 
-if [ "$DB_MODE" = "remote" ]; then
-  PGHOST="${REMOTE_PGHOST:-localhost}"
-  PGPORT="${REMOTE_PGPORT:-5432}"
-  PGDATABASE="${REMOTE_PGDATABASE:-appdb}"
-  PGUSER="${REMOTE_PGUSER:-appuser}"
-  PGPASSWORD="${REMOTE_PGPASSWORD:-changeme}"
-  PGSSLMODE="${REMOTE_PGSSLMODE:-require}"
-else
-  PGHOST="${PGHOST:-localhost}"
-  PGPORT="${PGPORT:-5433}"
-  PGDATABASE="${PGDATABASE:-appdb}"
-  PGUSER="${PGUSER:-appuser}"
-  PGPASSWORD="${PGPASSWORD:-changeme}"
-  PGSSLMODE="${PGSSLMODE:-disable}"
-fi
-
-# Expose optional controls via custom GUCs so SQL scripts can query them.
+# Custom GUC passthroughs
 declare -A PSQL_GUCS
 if [ -n "${FAIL_ON_LEVEL1_VARIANCE:-}" ]; then
   PSQL_GUCS["etlsuite.fail_on_level1_variance"]="$FAIL_ON_LEVEL1_VARIANCE"
 fi
 
-# -X ignore ~/.psqlrc, --pset=pager=off disables pager at psql level
+# Determine invocation strategy
 if command -v psql >/dev/null 2>&1; then
   PSQL=(psql -X -v ON_ERROR_STOP=1 --pset=pager=off -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE")
 else
-  if [ "${DB_MODE}" = "remote" ] || [ "${DB_MODE}" = "host" ]; then
-    echo "psql is not installed locally and DB_MODE=${DB_MODE}. Install PostgreSQL client tools or switch to container DB mode." >&2
+  if [ "$DB_MODE" = "remote" ] || [ "$DB_MODE" = "host" ]; then
+    echo "psql is not installed locally and DB_MODE=$DB_MODE. Install PostgreSQL client tools or run inside the Docker wrapper." >&2
     exit 2
   fi
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
@@ -75,7 +93,7 @@ while getopts ":c:f:v:" opt; do
   esac
 done
 
-export PGPASSWORD PGSSLMODE
+export PGPASSWORD PGSSLMODE PGHOST PGPORT PGDATABASE PGUSER
 
 if [ -n "$SQL_CMD" ]; then
   "${PSQL[@]}" "${EXTRA_ARGS[@]}" -c "$SQL_CMD"
