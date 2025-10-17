@@ -1,4 +1,4 @@
--- sql/phase2/002_core_basic_mviews.sql
+-- sql/phase2/002_core_basic_mviews.sql (UPDATED)
 SET search_path = core, public;
 
 -- (Re)create external accounts MV
@@ -36,7 +36,11 @@ SELECT
   core.to_numeric_safe(s.jr_interest_expected)        AS jr_interest_expected,
   core.to_numeric_safe(s.jr_interest_paid)            AS jr_interest_paid,
   core.to_numeric_safe(s.spar_merchant)               AS spar_merchant,
-  core.to_numeric_safe(s.additional_interests_paid_to_fh) AS additional_interests_paid_to_fh
+  core.to_numeric_safe(s.additional_interests_paid_to_fh) AS additional_interests_paid_to_fh,
+  -- Placeholders for new 'expected' columns. These need to be added to the source CSV and load process.
+  0::numeric AS additional_admin_fee_expected,
+  0::numeric AS sr_add_interest_expected,
+  0::numeric AS jr_add_interest_expected
 FROM raw.repmt_sku s;
 
 CREATE INDEX IF NOT EXISTS ix_mv_sku_id ON core.mv_repmt_sku(sku_id);
@@ -49,7 +53,10 @@ SELECT
   btrim(r.sku_id)                             AS sku_id,
   core.to_numeric_safe(r.total_funds_inflow)  AS total_funds_inflow,
   core.to_numeric_safe(r.sales_proceeds)      AS sales_proceeds,
-  core.to_numeric_safe(r.l2e)                 AS l2e
+  core.to_numeric_safe(r.l2e)                 AS l2e,
+  -- Placeholders for new inflow columns. These need to be added to the source CSV and load process.
+  0::numeric AS merchant_top_up,
+  0::numeric AS disbursement_surplus
 FROM raw.repmt_sales r;
 
 CREATE INDEX IF NOT EXISTS ix_mv_sales_sku_id ON core.mv_repmt_sales(sku_id);

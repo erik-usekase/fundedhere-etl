@@ -90,19 +90,22 @@ CREATE INDEX IF NOT EXISTS ix_mv_flows_cat     ON core.mv_va_txn_flows(category_
 CREATE INDEX IF NOT EXISTS ix_mv_flows_dir     ON core.mv_va_txn_flows(direction);
 CREATE INDEX IF NOT EXISTS ix_mv_flows_period  ON core.mv_va_txn_flows(period_ym);
 
--- Baseline pivot (will be replaced by 022_update_flows_pivot.sql)
+
 CREATE OR REPLACE VIEW core.v_flows_pivot AS
 SELECT
-  sku_id,
-  merchant_id,
-  SUM(CASE WHEN category_code='merchant_repayment' AND direction='inflow'  THEN signed_amount ELSE 0 END) AS amount_received,
-  SUM(CASE WHEN category_code='admin_fee'         AND direction='outflow' THEN -signed_amount ELSE 0 END) AS admin_fee_paid,
-  SUM(CASE WHEN category_code='mgmt_fee'          AND direction='outflow' THEN -signed_amount ELSE 0 END) AS management_fee_paid,
-  SUM(CASE WHEN category_code='int_diff'          AND direction='outflow' THEN -signed_amount ELSE 0 END) AS interest_difference_paid,
-  SUM(CASE WHEN category_code='sr_prin'           AND direction='outflow' THEN -signed_amount ELSE 0 END) AS sr_principal_paid,
-  SUM(CASE WHEN category_code='sr_int'            AND direction='outflow' THEN -signed_amount ELSE 0 END) AS sr_interest_paid,
-  SUM(CASE WHEN category_code='jr_prin'           AND direction='outflow' THEN -signed_amount ELSE 0 END) AS jr_principal_paid,
-  SUM(CASE WHEN category_code='jr_int'            AND direction='outflow' THEN -signed_amount ELSE 0 END) AS jr_interest_paid,
-  SUM(CASE WHEN category_code='spar'              AND direction='outflow' THEN -signed_amount ELSE 0 END) AS spar_paid
-FROM core.mv_va_txn_flows
-GROUP BY 1,2;
+    sku_id,
+    merchant_id,
+    sum(CASE WHEN direction = 'inflow'::text AND category_code = 'merchant_repayment'::text THEN signed_amount ELSE 0::numeric END) AS amount_received,
+    sum(CASE WHEN category_code = 'admin_fee'::text AND direction = 'outflow'::text THEN -signed_amount ELSE 0::numeric END) AS admin_fee_paid,
+    sum(CASE WHEN category_code = 'mgmt_fee'::text AND direction = 'outflow'::text THEN -signed_amount ELSE 0::numeric END) AS management_fee_paid,
+    sum(CASE WHEN category_code = 'int_diff'::text AND direction = 'outflow'::text THEN -signed_amount ELSE 0::numeric END) AS interest_difference_paid,
+    sum(CASE WHEN category_code = 'sr_prin'::text AND direction = 'outflow'::text THEN -signed_amount ELSE 0::numeric END) AS sr_principal_paid,
+    sum(CASE WHEN category_code = 'sr_int'::text AND direction = 'outflow'::text THEN -signed_amount ELSE 0::numeric END) AS sr_interest_paid,
+    sum(CASE WHEN category_code = 'jr_prin'::text AND direction = 'outflow'::text THEN -signed_amount ELSE 0::numeric END) AS jr_principal_paid,
+    sum(CASE WHEN category_code = 'jr_int'::text AND direction = 'outflow'::text THEN -signed_amount ELSE 0::numeric END) AS jr_interest_paid,
+    sum(CASE WHEN category_code = 'spar'::text AND direction = 'outflow'::text THEN -signed_amount ELSE 0::numeric END) AS spar_paid,
+    sum(CASE WHEN category_code = 'fh_add_admin_fee'::text AND direction = 'outflow'::text THEN -signed_amount ELSE 0::numeric END) AS additional_admin_fee_paid,
+    sum(CASE WHEN category_code = 'senior_add_investor_interest'::text AND direction = 'outflow'::text THEN -signed_amount ELSE 0::numeric END) AS sr_add_interest_paid,
+    sum(CASE WHEN category_code = 'junior_add_investor_interest'::text AND direction = 'outflow'::text THEN -signed_amount ELSE 0::numeric END) AS jr_add_interest_paid
+   FROM core.mv_va_txn_flows
+  GROUP BY sku_id, merchant_id;
