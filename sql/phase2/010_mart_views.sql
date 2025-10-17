@@ -6,7 +6,7 @@ DROP VIEW IF EXISTS mart.v_level1;
 CREATE VIEW mart.v_level1 AS
 WITH universe AS (
   -- The grain of the report is one row per unique SKU/VA mapping.
-  -- We rank them to handle figures that are at the SKU- or VA-level without duplication.
+  -- Rank them to handle figures that are at the SKU- or VA-level without duplication.
   SELECT DISTINCT
     n.sku_id,
     n.va_number      AS account_number,
