@@ -326,38 +326,144 @@ The web app connects to the same Postgres instance on the Docker network. Localh
 
 Query definitions in `webapp/backend/queries.yaml`.
 
+### Demo Queries
+
+Once the database is loaded, you can query all three views (Sheet1/Level1, Sheet2a/Level2a, Sheet2b/Level2b) using either `make container-sql` (Git Bash compatible) or direct SQL clients.
+
+#### Quick Preview (5 Rows from Each View)
+
+**Sheet 1 (Level 1) — Cash vs Ledger:**
+```bash
+# Git Bash / Windows / Linux / macOS
+docker exec app-postgres psql -U appuser -d appdb -c \
+  'SELECT "SKU ID", "Merchant",
+   ROUND("Amount Received"::numeric, 2) as amount_received,
+   ROUND("Sales Proceeds"::numeric, 2) as sales_proceeds
+   FROM mart.v_level1 ORDER BY "SKU ID" LIMIT 5;'
+```
+Sample output:
+```
+               SKU ID               |  Merchant   | amount_received | sales_proceeds
+------------------------------------+-------------+-----------------+----------------
+ 4 HOLE EGG PAN-1288-636-92rxuDoq6U | ABC Sdn Bhd |         1012.48 |        1012.48
+ 4 HOLE EGG PAN-1321-636-PqPXXAM2wT4 | ABC Sdn Bhd |          540.00 |         540.00
+ BONE CUTTER-1288-636-hXKMZMU5NF    | ABC Sdn Bhd |          532.12 |         532.12
+```
+
+**Sheet 2a (Level 2a) — Waterfall Execution:**
+```bash
+docker exec app-postgres psql -U appuser -d appdb -c \
+  'SELECT "SKU ID", "Merchant",
+   ROUND("Amount Received"::numeric, 2) as amount_received,
+   ROUND("Amount Distributed Down the Repayment Waterfall"::numeric, 2) as waterfall
+   FROM mart.v_level2a ORDER BY "SKU ID" LIMIT 5;'
+```
+Sample output:
+```
+               SKU ID               |  Merchant   | amount_received | waterfall
+------------------------------------+-------------+-----------------+-----------
+ 4 HOLE EGG PAN-1288-636-92rxuDoq6U | ABC Sdn Bhd |         1012.48 |   1186.43
+ 4 HOLE EGG PAN-1321-636-PqPXAM2wT4 | ABC Sdn Bhd |          540.00 |   1189.74
+```
+
+**Sheet 2b (Level 2b) — UI vs Cashflow:**
+```bash
+docker exec app-postgres psql -U appuser -d appdb -c \
+  'SELECT "SKU ID", "Merchant",
+   ROUND("Total Fund Inflow"::numeric, 2) as total_inflow,
+   ROUND("Management Fee Paid"::numeric, 2) as mgmt_fee,
+   ROUND("Senior Principal Paid"::numeric, 2) as sr_principal
+   FROM mart.v_level2b ORDER BY "SKU ID" LIMIT 5;'
+```
+Sample output:
+```
+               SKU ID               |  Merchant   | total_inflow | mgmt_fee | sr_principal
+------------------------------------+-------------+--------------+----------+--------------
+ 4 HOLE EGG PAN-1288-636-92rxuDoq6U | ABC Sdn Bhd |      1012.48 |    27.76 |      1000.00
+ BONE CUTTER-1288-636-hXKMZMU5NF    | ABC Sdn Bhd |       532.12 |    11.23 |       405.00
+```
+
+#### Common Query Patterns
+
+**Find SKUs by merchant:**
+```bash
+docker exec app-postgres psql -U appuser -d appdb -c \
+  "SELECT \"SKU ID\", \"Merchant\", ROUND(\"Amount Received\"::numeric, 2)
+   FROM mart.v_level1
+   WHERE \"Merchant\" = 'ABC Sdn Bhd'
+   ORDER BY \"Amount Received\" DESC LIMIT 10;"
+```
+
+**Top 10 SKUs by Amount Received:**
+```bash
+docker exec app-postgres psql -U appuser -d appdb -c \
+  'SELECT "SKU ID", "Merchant", ROUND("Amount Received"::numeric, 2) as amount
+   FROM mart.v_level1
+   ORDER BY "Amount Received" DESC LIMIT 10;'
+```
+
+**Check specific SKU details across all views:**
+```bash
+# Sheet 1 - Cash vs Ledger
+docker exec app-postgres psql -U appuser -d appdb -c \
+  "SELECT * FROM mart.v_level1 WHERE \"SKU ID\" = 'BONE CUTTER-1288-636-hXKMZMU5NF';"
+
+# Sheet 2a - Waterfall
+docker exec app-postgres psql -U appuser -d appdb -c \
+  "SELECT * FROM mart.v_level2a WHERE \"SKU ID\" = 'BONE CUTTER-1288-636-hXKMZMU5NF';"
+
+# Sheet 2b - UI vs CF
+docker exec app-postgres psql -U appuser -d appdb -c \
+  "SELECT * FROM mart.v_level2b WHERE \"SKU ID\" = 'BONE CUTTER-1288-636-hXKMZMU5NF';"
+```
+
+**Find SKUs with outstanding fees (Sheet 2a):**
+```bash
+docker exec app-postgres psql -U appuser -d appdb -c \
+  'SELECT "SKU ID", "Merchant",
+   ROUND("Amount Received"::numeric, 2) as received,
+   ROUND("Amount Distributed Down the Repayment Waterfall"::numeric, 2) as distributed
+   FROM mart.v_level2a
+   WHERE "Amount Distributed Down the Repayment Waterfall" > "Amount Received"
+   ORDER BY ("Amount Distributed Down the Repayment Waterfall" - "Amount Received") DESC
+   LIMIT 10;'
+```
+
+**Check total counts (should match CSV row counts):**
+```bash
+docker exec app-postgres psql -U appuser -d appdb -c \
+  'SELECT COUNT(*) as sheet1_rows FROM mart.v_level1;'
+docker exec app-postgres psql -U appuser -d appdb -c \
+  'SELECT COUNT(*) as sheet2a_rows FROM mart.v_level2a;'
+docker exec app-postgres psql -U appuser -d appdb -c \
+  'SELECT COUNT(*) as sheet2b_rows FROM mart.v_level2b;'
+```
+
 ### Level‑1 query cheat sheet
 
-Once the pipeline has loaded, a few handy queries help verify Level‑1 results in pgAdmin/psql:
+Additional queries for verifying Level‑1 results in pgAdmin/psql:
 
 ```sql
 -- Top SKUs by sales vs received variance
 SELECT
-    sku_id,
-    merchant,
-    ROUND(amount_pulled, 2)   AS amount_pulled,
-    ROUND(amount_received, 2) AS amount_received,
-    ROUND(sales_proceeds, 2)  AS sales_proceeds,
-    ROUND(sales_proceeds - amount_received, 2) AS variance_sales
+    "SKU ID",
+    "Merchant",
+    ROUND("Amount Received", 2) AS amount_received,
+    ROUND("Sales Proceeds", 2)  AS sales_proceeds,
+    ROUND("Variance", 2) AS variance
 FROM mart.v_level1
-ORDER BY ABS(sales_proceeds - amount_received) DESC
+ORDER BY ABS("Variance") DESC
 LIMIT 20;
-
--- Inspect a single SKU / VA pair
-SELECT *
-FROM mart.v_level1
-WHERE sku_id = 'BONE CUTTER-1288-636-hXKMZMU5NF'
-  AND account_number = '8850633715110';
 
 -- Merchant roll-up
 SELECT
-    merchant,
-    ROUND(SUM(amount_pulled), 2)   AS total_pulled,
-    ROUND(SUM(amount_received), 2) AS total_received,
-    ROUND(SUM(sales_proceeds), 2)  AS total_sales
+    "Merchant",
+    ROUND(SUM("Amount Received"), 2) AS total_received,
+    ROUND(SUM("Sales Proceeds"), 2)  AS total_sales,
+    ROUND(SUM("Variance"), 2) AS total_variance
 FROM mart.v_level1
 GROUP BY 1
-ORDER BY ABS(SUM(sales_proceeds - amount_received)) DESC;
+ORDER BY ABS(SUM("Variance")) DESC;
 ```
 
 Shortcuts:
