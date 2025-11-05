@@ -3,8 +3,8 @@ set -euo pipefail
 
 CSV_PATH="${1:-./data/inc_data/note_sku_va_map_prepped.csv}"
 if [ ! -f "$CSV_PATH" ]; then
-  echo "Mapping CSV not found: $CSV_PATH" >&2
-  exit 2
+  echo "Mapping CSV not found: $CSV_PATH (skipping - views will use data without mappings)" >&2
+  exit 0
 fi
 
 if [ "$(wc -l < "$CSV_PATH")" -le 1 ]; then

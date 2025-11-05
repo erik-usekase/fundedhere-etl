@@ -1,22 +1,18 @@
 #!/usr/bin/env python3
-"""Generate note_sku_va_map_prepped.csv from the Level-1 reference export."""
+"""Generate note_sku_va_map_prepped.csv from the repmt_sku data."""
 from __future__ import annotations
 
 import argparse
 import csv
+import io
 import os
+import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable, List
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--source",
-        default="data/inc_data/level1_reference.csv",
-        help="Path to the Level-1 reference CSV.",
-    )
     parser.add_argument(
         "--output",
         default="data/inc_data/note_sku_va_map_prepped.csv",
@@ -25,101 +21,57 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--quiet",
         action="store_true",
-        help="Suppress informational messages about fallback source detection.",
+        help="Suppress informational messages.",
     )
     return parser.parse_args()
 
 
-def read_rows(path: Path) -> List[List[str]]:
+def fetch_sku_va_pairs() -> list[tuple[str, str]]:
+    """Query database for unique SKU ID + VA number pairs from raw data."""
+    query = """
+COPY (
+  SELECT DISTINCT
+    s.sku_id,
+    v.receiver_virtual_account_number AS va_number
+  FROM raw.repmt_sku s
+  CROSS JOIN raw.va_txn v
+  WHERE v.sender_note_id = s.sku_id
+    AND v.receiver_virtual_account_number IS NOT NULL
+    AND v.receiver_virtual_account_number <> ''
+  ORDER BY s.sku_id, va_number
+) TO STDOUT WITH CSV
+"""
+    bash_path = os.getenv('BASH_PATH', 'bash')
+    project_root = Path(__file__).resolve().parents[1]
+    cmd = [bash_path, 'scripts/run_sql.sh', '-c', query]
+    env = os.environ.copy()
+    # Don't override PGHOST/PGPORT if already set (respects .env file)
+    # run_sql.sh will auto-detect the correct connection settings
+    env['PGSSLMODE'] = 'disable'
+
     try:
-        with path.open(newline="", encoding="utf-8-sig") as handle:
-            return [row for row in csv.reader(handle)]
-    except FileNotFoundError as exc:
-        raise SystemExit(f"Source file not found: {path}") from exc
+        res = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=project_root,
+            env=env,
+        )
+    except subprocess.CalledProcessError as exc:
+        message = exc.stderr.strip() or exc.stdout.strip()
+        raise SystemExit(f"SKU-VA mapping query failed: {message}") from exc
 
+    reader = csv.reader(io.StringIO(res.stdout))
+    pairs = [(sku, va) for sku, va in reader if sku and va]
 
-def resolve_source(explicit: Path, out_dir: Path, quiet: bool) -> Path:
-    if explicit.exists():
-        return explicit
-
-    fallback_names = [
-        "level1_reference.csv",
-        "level1_formula_output.csv",
-        "level1_formula.csv",
-        "formula_output_level1.csv",
-        "formula_and_output_level1.csv",
-        "formula_output.csv",
-        "Sample Files((1) Formula & Output).csv",
-        "Sample Files((1) Formula & Output).CSV",
-    ]
-    seen = {explicit.resolve(strict=False)}
-    for name in fallback_names:
-        candidate = (out_dir / name).resolve(strict=False)
-        if candidate in seen:
-            continue
-        seen.add(candidate)
-        if candidate.exists():
-            if not quiet:
-                print(f"Source {explicit} not found; using {candidate}")
-            return candidate
-
-    # Fall back to other Formula & Output CSVs in the directory.
-    formula_files = [
-        p.resolve(strict=False)
-        for p in out_dir.glob("*.csv")
-        if "formula" in p.name.lower() and "output" in p.name.lower()
-    ]
-    if formula_files:
-        # Prefer ones that look like Level 1 (contain '1' or 'level1').
-        def score(path: Path) -> tuple[int, str]:
-            name = path.name.lower()
-            has_level1 = int("level1" in name or "(1" in name or "_1" in name)
-            return (has_level1, name)
-
-        chosen = sorted(formula_files, key=score, reverse=True)[0]
-        if not quiet:
-            print(f"Source {explicit} not found; using {chosen}")
-        return chosen
-
-    raise SystemExit(
-        "Could not locate a Level-1 reference CSV. Provide --source or place the file in data/inc_data/."
-    )
-
-
-def find_header_index(rows: Iterable[List[str]]) -> int:
-    for idx, row in enumerate(rows):
-        if not row:
-            continue
-        first = row[0].strip().lower()
-        if first == "sku id":
-            return idx
-        # fallback: rows like "[category name], SKU ID"
-        if len(row) > 1 and row[1].strip().lower() == "sku id":
-            return idx
-    raise SystemExit("Could not locate 'SKU ID' header in reference export.")
-
-
-def extract_pairs(rows: List[List[str]], start_idx: int) -> List[tuple[str, str]]:
-    pairs: list[tuple[str, str]] = []
-    for row in rows[start_idx + 1 :]:
-        if len(row) < 2:
-            break
-        sku = row[0].strip() or row[1].strip()
-        va = row[1].strip() if row[0].strip() else (row[2].strip() if len(row) > 2 else "")
-        if not sku or not va:
-            break
-        if sku.lower().startswith("total"):
-            break
-        # If "SKU ID" was in column 1, shift properly
-        if row[1].strip().lower() == "account number":
-            continue
-        pairs.append((sku, va))
     if not pairs:
-        raise SystemExit("No SKU/VA pairs found beneath header row.")
+        raise SystemExit("No SKU/VA pairs found in database.")
+
     return pairs
 
 
-def write_output(path: Path, pairs: List[tuple[str, str]]) -> None:
+def write_output(path: Path, pairs: list[tuple[str, str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
@@ -136,13 +88,9 @@ def main() -> None:
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    source_path = resolve_source(Path(args.source), output_path.parent, quiet)
-
-    rows = read_rows(source_path)
-    header_idx = find_header_index(rows)
-    pairs = extract_pairs(rows, header_idx)
-
+    pairs = fetch_sku_va_pairs()
     write_output(output_path, pairs)
+
     if not quiet:
         print(f"Wrote {len(pairs)} SKU<->VA mappings to {output_path}")
 

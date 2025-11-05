@@ -9,7 +9,19 @@ if [ -z "${SKIP_ENV_FILE:-}" ] && [ -f ".env" ] && [ -z "${PGHOST:-}" ]; then
   set +a
 fi
 
-DB_MODE="${DB_MODE:-container-bind}"
+# Auto-detect if running inside Docker container
+is_inside_docker() {
+  [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null
+}
+
+# Auto-detect DB_MODE if not set
+if [ -z "${DB_MODE:-}" ]; then
+  if is_inside_docker; then
+    DB_MODE="container-bind"
+  else
+    DB_MODE="host"
+  fi
+fi
 
 # Respect explicit PG* overrides; otherwise choose sensible defaults per mode
 if [ -z "${PGHOST:-}" ] || [ -z "${PGPORT:-}" ]; then
