@@ -21,7 +21,7 @@ INC_DIR := $(EFFECTIVE_DATA_DIR)/inc_data
 .PHONY: prep-data up up-wait down logs env psql-host sql sqlf refresh counts initdb bootstrap
 
 prep-data:
-> mkdir -p "$(EFFECTIVE_DATA_DIR)/pgdata" "$(INC_DIR)"
+> mkdir -p "$(INC_DIR)"
 
 up: prep-data
 > scripts/db_up.sh

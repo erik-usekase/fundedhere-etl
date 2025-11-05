@@ -11,8 +11,7 @@ services:
       # host:container — bind host 5433 so we don't collide with local 5432
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
-      # persistent data + an optional place for you to drop CSVs (not required)
-      - ${DATA_DIR:-./data}/pgdata:/var/lib/postgresql/data
+      # CSV data files from host
       - ${DATA_DIR:-./data}/inc_data:/data/inc_data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appuser} -d ${POSTGRES_DB:-appdb} -h localhost -p 5432"]

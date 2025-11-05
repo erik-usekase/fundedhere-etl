@@ -21,7 +21,7 @@ DB_MODE="${DB_MODE:-container-bind}"
 AUTO_DB_SHUTDOWN="${AUTO_DB_SHUTDOWN:-0}"
 
 EFFECTIVE_DATA_DIR="${DATA_DIR:-$PROJECT_ROOT/data}"
-mkdir -p "${EFFECTIVE_DATA_DIR}" "${EFFECTIVE_DATA_DIR}/inc_data" "${EFFECTIVE_DATA_DIR}/pgdata"
+mkdir -p "${EFFECTIVE_DATA_DIR}" "${EFFECTIVE_DATA_DIR}/inc_data" 
 
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   COMPOSE_CMD=(docker compose)

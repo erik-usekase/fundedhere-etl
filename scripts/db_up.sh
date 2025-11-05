@@ -18,7 +18,7 @@ fi
 
 DB_MODE="${DB_MODE:-container-bind}"
 EFFECTIVE_DATA_DIR="${DATA_DIR:-./data}"
-mkdir -p "${EFFECTIVE_DATA_DIR}" "${EFFECTIVE_DATA_DIR}/pgdata" "${EFFECTIVE_DATA_DIR}/inc_data"
+mkdir -p "${EFFECTIVE_DATA_DIR}" "${EFFECTIVE_DATA_DIR}/inc_data"
 
 case "$DB_MODE" in
   container-bind)   "${COMPOSE_CMD[@]}" --profile db-local-bind up -d ;;
