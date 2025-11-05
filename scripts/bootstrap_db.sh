@@ -23,7 +23,6 @@ declare -a PHASE2_FILES=(
   "${SQL_DIR_PHASE2}/010_mart_views.sql"
   "${SQL_DIR_PHASE2}/020_mart_level2.sql"
   "${SQL_DIR_PHASE2}/021_category_funds_to_sku.sql"
-  "${SQL_DIR_PHASE2}/022_update_flows_pivot.sql"
   "${SQL_DIR_PHASE2}/023_update_remarks_map.sql"
 )
 
