@@ -56,3 +56,11 @@ values
   ('jr principal','jr_prin',true,50),
   ('spar','spar',true,60)
 on conflict do nothing;
+
+-- Active reporting period view
+-- This view defines the date range for all mart views
+CREATE OR REPLACE VIEW ref.v_active_period AS
+SELECT 
+  '2025-01-01'::date AS start_date,
+  '2025-09-30'::date AS end_date,
+  '2025-Q1-Q3' AS period_name;
