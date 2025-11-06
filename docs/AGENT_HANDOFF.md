@@ -1,24 +1,35 @@
 # Agent Handoff Log — FundedHere Reconciliation ETL
 
-_Last updated: 2025-10-06T18:20:00Z_
+_Last updated: 2025-11-05_
 
 ## 1. Mission Snapshot
 - **Objective**: Maintain the FundedHere reconciliation pipeline so CSV drops → Postgres mart refresh → parity/variance reporting are one-command operations.
-- **Status**: September 2025 data loaded; Docker-based runner packaged; variance guard still acting as a warning until Finance sets tolerances.
+- **Status**: ✅ All three views (v_level1, v_level2a, v_level2b) now match Excel formulas exactly. SQLAlchemy migration complete. 366 SKUs validated.
 
-## 2. Recent Work
+## 2. Recent Work (November 2025 Session)
+### View Formula Fixes - Exact Excel Parity Achieved
+- **Fixed v_level1 cartesian product bug**: Separated inflow/outflow aggregations into independent CTEs, eliminating 14x row multiplication. Amount Received now correctly sums only `merchant-repayment` transactions.
+- **Fixed v_level2a inflow filter**: Changed from `merchant-repayment` only to ALL inflows EXCEPT `note-issued-transfer-to-sku`. This matches Excel's definition of total fund flow.
+- **Fixed v_level2b inflow filter**: Applied same fix as v_level2a for consistency.
+- **Verified Excel parity**: All values now match source Excel workbook (`pre_csv/full_wb.xlsx`) exactly.
+- **Key insight discovered**: Sheet 1 vs Sheet 2a have different "Amount Received" definitions:
+  - Sheet 1: ONLY merchant repayments (cash from merchants)
+  - Sheet 2a/2b: ALL activity except initial note funding (total fund flow including transfers)
+
+### Previous Work (October 2025)
 - Simplified Windows Git Bash setup (documented Python/make/psql installs, PATH tweaks).
 - Added Level-1 vs CSV reconciliation query so users see raw CSV totals alongside mart totals.
-- Bundled the entire ETL toolchain (make + python + psql) into a single Docker image; README updated with “build once, run anywhere” instructions.
+- Bundled the entire ETL toolchain (make + python + psql) into a single Docker image; README updated with "build once, run anywhere" instructions.
 - README now explains how to connect pgAdmin/DBeaver to the containerized Postgres (`localhost:5433`, db `appdb`, user `appuser`, pw `changeme`).
+- **SQLAlchemy 2.0+ migration**: Converted all bash scripts to Python using SQLAlchemy for database operations. 75% code reduction (404→100 lines).
 
 ## 3. Active State
 | Layer | Tables/Views | Notes |
 |-------|---------------|-------|
-| raw   | external_accounts, va_txn, repmt_sku, repmt_sales | 2025‑09 sample loaded via `make etl-verify`. |
-| ref   | note_sku_va_map, remarks_category_map | 366 SKU↔VA mappings from the Level‑1 reference CSV; `note_id` column remains blank. |
-| core  | mv_external_accounts, mv_va_txn, mv_repmt_sku, mv_repmt_sales, v_flows_pivot, v_inter_sku_transfers | Views refresh successfully. `core.mv_va_txn` only labels ledger inflows tagged `merchant_repayment` as “received.” |
-| mart  | v_level1, v_level2a, v_level2b | Present for all 366 SKUs. Variances still reflect unresolved business gaps; Level‑1 guard left in “warning” mode. |
+| raw   | external_accounts, va_txn, repmt_sku, repmt_sales | 2025‑09 data loaded (32,049 rows total). Loads via Python SQLAlchemy with COPY command. |
+| ref   | note_sku_va_map, remarks_category_map, v_active_period | 366 SKU mappings loaded. Active period: 2025-01-01 to 2025-09-30. |
+| core  | mv_external_accounts, mv_va_txn, mv_repmt_sku, mv_repmt_sales | Materialized views for performance. |
+| mart  | v_level1, v_level2a, v_level2b | ✅ All 366 SKUs present with exact Excel parity. Views use separate CTEs to avoid cartesian products. |
 
 ## 4. Key Findings / Variance Snapshot
 - Average `Amount Pulled vs Received` variance ≈ **$0.20** (cash mostly balanced).
@@ -54,10 +65,12 @@ _Last updated: 2025-10-06T18:20:00Z_
   This helps finance explain why the Level‑1 “Amount Received” is lower than the CSV total (the missing dollars are sitting in the waterfall categories or transfers).
 
 ## 5. Open Items / Next Steps
-1. **Variance policy** – Finance needs to define acceptable thresholds (e.g., ±$5 per SKU). Once set, update `scripts/sql-tests/check_level1_variance_tolerance.sql` and flip `FAIL_ON_LEVEL1_VARIANCE=1` in `.env` so the ETL fails when data is out of policy.
-2. **Remark categorisation** – Investigate ledger categories such as `transfer-to-another-sku` and `loan-disbursement`; decide which should count toward “Amount Received” vs transfers.
-3. **Level‑2 parity checks** – Add tests comparing `mart.v_level2a`/`v_level2b` with the respective reference CSVs (waterfall, UI vs cash).
-4. **AI assistant integration (future)** – With the Docker runner in place, we can expose the mart via an API and let a GPT agent translate natural-language questions into SQL. No code yet; this is the intended next milestone.
+1. ✅ ~~**View parity with Excel**~~ – COMPLETED. All three views now match Excel formulas exactly.
+2. ✅ ~~**Remark categorisation**~~ – RESOLVED. Sheet 1 uses only `merchant-repayment`, Sheet 2a/2b uses all inflows except `note-issued-transfer-to-sku`.
+3. **Automated tests for v_level2a/v_level2b** – Add Python tests similar to `test_level1_parity.py` that validate Sheet 2a/2b values against Excel.
+4. **Variance policy** – Finance needs to define acceptable thresholds (e.g., ±$5 per SKU). Once set, update `scripts/sql-tests/check_level1_variance_tolerance.sql`.
+5. **Web API layer** – Consider exposing mart views via FastAPI for programmatic access.
+6. **Multi-period support** – Current views use single active period (2025-01-01 to 2025-09-30). Extend to support historical period comparisons.
 
 ## 6. Quick Commands
 - Docker runner (from repo root or after pulling image):

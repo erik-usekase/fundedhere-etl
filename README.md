@@ -8,10 +8,23 @@ A production-focused pipeline that converts FundedHere’s reconciliation CSV ex
 - **Level 2b — UI vs. Cashflow**: contrasts UI-facing repayment totals with the cash ledger to highlight category-level deltas for downstream consumers.
 
 ## Product Outcomes
-- **Reference parity**: `mart.v_level1`, `mart.v_level2a`, and `mart.v_level2b` fully implement the business logic from the “Formula & Output” CSV exports. Level-1 parity is verified by an automated test suite; formalizing Level-2 tests is the next step.
+- **✅ Excel Parity Achieved**: All three views (`mart.v_level1`, `mart.v_level2a`, `mart.v_level2b`) now produce values that exactly match the source Excel workbook formulas. Fixed cartesian product bug in v_level1 and corrected inflow filters in v_level2a/2b.
+- **Reference parity**: Views fully implement business logic from "Formula & Output" Excel sheets. Level-1 parity verified by automated test suite.
 - **Explorable data model**: inputs land in `raw.*`, mappings live in `ref.*`, typed transforms sit in `core.*`, and business consumers query `mart.*`.
 - **Automated verification**: header validation, SKU coverage, row-count parity, totals parity, and Level‑1 reference parity run in `scripts/run_test_suite.sh`.
 - **Agent-ready**: every row carries `merchant`, `sku_id`, and `period_ym` so downstream automation can request time slices without reprocessing the workbook.
+
+### Key Differences Between Views
+
+The three reconciliation views use different definitions of "Amount Received":
+
+| View | Amount Received | Focus |
+|------|----------------|-------|
+| **v_level1** | ONLY `merchant-repayment` transactions | Cash received from merchants |
+| **v_level2a** | ALL inflows EXCEPT `note-issued-transfer-to-sku` | Total fund flow including cross-SKU transfers |
+| **v_level2b** | Same as v_level2a | Payment component breakdown |
+
+This difference is intentional - Sheet 1 tracks cash from merchants, while Sheet 2a/2b track total fund movement including internal transfers.
 
 Further reading:
 - [Architecture & workflow](docs/EXISTING_ANALYSIS.md)
@@ -25,6 +38,7 @@ Further reading:
 - [Outstanding test gaps](docs/TEST_GAPS.md)
 - [Testing guide](docs/TESTING.md)
 - [Agent hand-off log](docs/AGENT_HANDOFF.md)
+- [View fix summary](.build/view_fix_summary.md) 🔧 - Recent cartesian product and filter fixes
 
 ## Data Sources (CSV extracts)
 1. **External Accounts (Merchant)** → `raw.external_accounts`

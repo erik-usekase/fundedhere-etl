@@ -1,4 +1,4 @@
--- sql/phase2/010_mart_views.sql - Level 1 View matching 1.txt formulas
+-- sql/phase2/010_mart_views.sql - Level 1 View matching Excel formulas
 SET search_path = mart, public;
 
 DROP VIEW IF EXISTS mart.v_level1 CASCADE;
@@ -16,172 +16,149 @@ sku_universe AS (
   FROM raw.repmt_sku s
   WHERE s.sku_id IS NOT NULL AND s.sku_id <> '' AND s.sku_id <> 'SKU ID'
 ),
-sku_metrics AS (
+inflow_metrics AS (
+  -- Calculate inflows separately to avoid cartesian product
   SELECT
     u.sku_id,
-    COALESCE(u.merchant, '') AS merchant,
-
-    -- Amount Received: Sum of Sales Proceeds + Merchant Top Up + Disbursement Surplus + Fund Transferred from Other SKU
-    -- This will be calculated from the breakdown columns, so just set to placeholder here
-    0::numeric AS amount_received_placeholder,
-
     -- Sales Proceeds: remark = 'merchant-repayment'
     COALESCE(SUM(
-      CASE WHEN v_in.remarks = 'merchant-repayment'
-        AND COALESCE(v_in.receiver_va_closing_balance, '') <> ''
-        AND CAST(v_in.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_in.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_in.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks = 'merchant-repayment'
+        AND COALESCE(v.receiver_va_closing_balance, '') <> ''
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS sales_proceeds,
 
     -- Merchant Top Up: remark = '' (blank)
     COALESCE(SUM(
-      CASE WHEN COALESCE(v_in.remarks, '') = ''
-        AND COALESCE(v_in.receiver_va_closing_balance, '') <> ''
-        AND CAST(v_in.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_in.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_in.amount, '') AS NUMERIC)
+      CASE WHEN COALESCE(v.remarks, '') = ''
+        AND COALESCE(v.receiver_va_closing_balance, '') <> ''
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS merchant_top_up,
 
-    -- Disbursement Surplus: 'disbursement-surplus' + 'disbursement-delivered-shortfall'
+    -- Disbursement Surplus
     COALESCE(SUM(
-      CASE WHEN v_in.remarks IN ('disbursement-surplus', 'disbursement-delivered-shortfall')
-        AND COALESCE(v_in.receiver_va_closing_balance, '') <> ''
-        AND CAST(v_in.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_in.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_in.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks IN ('disbursement-surplus', 'disbursement-delivered-shortfall')
+        AND COALESCE(v.receiver_va_closing_balance, '') <> ''
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS disbursement_surplus,
 
-    -- Fund Transferred from Other SKU: 'transfer-to-another-sku' on receiver
+    -- Fund Transferred from Other SKU
     COALESCE(SUM(
-      CASE WHEN v_in.remarks = 'transfer-to-another-sku'
-        AND COALESCE(v_in.receiver_va_closing_balance, '') <> ''
-        AND CAST(v_in.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_in.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_in.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks = 'transfer-to-another-sku'
+        AND COALESCE(v.receiver_va_closing_balance, '') <> ''
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
-    ), 0.00) AS fund_transferred_from_other_sku,
-
-    -- Fund Transferred to Other SKU: 'transfer-to-another-sku' on sender
+    ), 0.00) AS fund_transferred_from_other_sku
+  FROM sku_universe u
+  LEFT JOIN raw.va_txn v ON v.receiver_virtual_account_id = u.sku_id
+  GROUP BY u.sku_id
+),
+outflow_metrics AS (
+  -- Calculate outflows separately to avoid cartesian product
+  SELECT
+    u.sku_id,
+    -- Fund Transferred to Other SKU
     COALESCE(SUM(
-      CASE WHEN v_out.sender_note_id = u.sku_id
-        AND v_out.remarks = 'transfer-to-another-sku'
-        AND COALESCE(v_out.sender_note_id, '') <> ''
-        AND CAST(v_out.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_out.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_out.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks = 'transfer-to-another-sku'
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS fund_transferred_to_other_sku,
 
-    -- Paid amounts by category (SUMIFS on sender_note_id + remark)
+    -- Paid amounts by category
     COALESCE(SUM(
-      CASE WHEN v_out.sender_note_id = u.sku_id
-        AND v_out.remarks = 'acquirer-fee'
-        AND COALESCE(v_out.sender_note_id, '') <> ''
-        AND CAST(v_out.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_out.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_out.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks = 'acquirer-fee'
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS management_fee_paid,
 
     COALESCE(SUM(
-      CASE WHEN v_out.sender_note_id = u.sku_id
-        AND v_out.remarks = 'fh-admin-fee'
-        AND COALESCE(v_out.sender_note_id, '') <> ''
-        AND CAST(v_out.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_out.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_out.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks = 'fh-admin-fee'
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS admin_fee_paid,
 
     COALESCE(SUM(
-      CASE WHEN v_out.sender_note_id = u.sku_id
-        AND v_out.remarks = 'fh-add-admin-fee'
-        AND COALESCE(v_out.sender_note_id, '') <> ''
-        AND CAST(v_out.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_out.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_out.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks = 'fh-add-admin-fee'
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS additional_admin_fee_paid,
 
     COALESCE(SUM(
-      CASE WHEN v_out.sender_note_id = u.sku_id
-        AND v_out.remarks = 'int-diff'
-        AND COALESCE(v_out.sender_note_id, '') <> ''
-        AND CAST(v_out.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_out.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_out.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks = 'int-diff'
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS interest_difference_paid,
 
     COALESCE(SUM(
-      CASE WHEN v_out.sender_note_id = u.sku_id
-        AND v_out.remarks = 'senior-investor-principal'
-        AND COALESCE(v_out.sender_note_id, '') <> ''
-        AND CAST(v_out.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_out.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_out.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks = 'senior-investor-principal'
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS senior_principal_paid,
 
     COALESCE(SUM(
-      CASE WHEN v_out.sender_note_id = u.sku_id
-        AND v_out.remarks = 'senior-investor-interest'
-        AND COALESCE(v_out.sender_note_id, '') <> ''
-        AND CAST(v_out.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_out.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_out.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks = 'senior-investor-interest'
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS senior_interest_paid,
 
     COALESCE(SUM(
-      CASE WHEN v_out.sender_note_id = u.sku_id
-        AND v_out.remarks = 'senior-add-investor-interest'
-        AND COALESCE(v_out.sender_note_id, '') <> ''
-        AND CAST(v_out.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_out.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_out.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks = 'senior-add-investor-interest'
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS senior_add_interest_paid,
 
     COALESCE(SUM(
-      CASE WHEN v_out.sender_note_id = u.sku_id
-        AND v_out.remarks = 'junior-investor-principal'
-        AND COALESCE(v_out.sender_note_id, '') <> ''
-        AND CAST(v_out.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_out.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_out.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks = 'junior-investor-principal'
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS junior_principal_paid,
 
     COALESCE(SUM(
-      CASE WHEN v_out.sender_note_id = u.sku_id
-        AND v_out.remarks = 'junior-investor-interest'
-        AND COALESCE(v_out.sender_note_id, '') <> ''
-        AND CAST(v_out.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_out.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_out.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks = 'junior-investor-interest'
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS junior_interest_paid,
 
     COALESCE(SUM(
-      CASE WHEN v_out.sender_note_id = u.sku_id
-        AND v_out.remarks = 'junior-add-investor-interest'
-        AND COALESCE(v_out.sender_note_id, '') <> ''
-        AND CAST(v_out.date AS DATE) >= (SELECT start_date FROM active_period)
-        AND CAST(v_out.date AS DATE) <= (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v_out.amount, '') AS NUMERIC)
+      CASE WHEN v.remarks = 'junior-add-investor-interest'
+        AND CAST(v.date AS DATE) >= (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) <= (SELECT end_date FROM active_period)
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS junior_add_interest_paid
-
   FROM sku_universe u
-  LEFT JOIN ref.note_sku_va_map m ON m.sku_id = u.sku_id
-  LEFT JOIN raw.va_txn v_in ON v_in.receiver_virtual_account_number = m.va_number
-  LEFT JOIN raw.va_txn v_out ON v_out.sender_note_id = u.sku_id
-  GROUP BY u.sku_id, u.merchant
+  LEFT JOIN raw.va_txn v ON v.sender_virtual_account_id = u.sku_id
+  GROUP BY u.sku_id
 ),
 expected_values AS (
   -- Get expected amounts from repmt_sku (XLOOKUP equivalent)
@@ -198,64 +175,62 @@ expected_values AS (
   WHERE sku_id IS NOT NULL AND sku_id <> '' AND sku_id <> 'SKU ID'
 )
 SELECT
-  m.sku_id AS "SKU ID",
-  m.merchant AS "Merchant",
-  m.sales_proceeds AS "Amount Received",
+  u.sku_id AS "SKU ID",
+  u.merchant AS "Merchant",
+  inf.sales_proceeds AS "Amount Received",
 
-  -- Amount Distributed Down the Repayment Waterfall (BYROW SUM)
-  (m.management_fee_paid + m.admin_fee_paid + m.additional_admin_fee_paid +
-   m.interest_difference_paid + m.senior_principal_paid + m.senior_interest_paid +
-   m.senior_add_interest_paid + m.junior_principal_paid + m.junior_interest_paid +
-   m.junior_add_interest_paid) AS "Amount Distributed Down the Repayment Waterfall",
+  -- Amount Distributed Down the Repayment Waterfall
+  (out.management_fee_paid + out.admin_fee_paid + out.additional_admin_fee_paid +
+   out.interest_difference_paid + out.senior_principal_paid + out.senior_interest_paid +
+   out.senior_add_interest_paid + out.junior_principal_paid + out.junior_interest_paid +
+   out.junior_add_interest_paid) AS "Amount Distributed Down the Repayment Waterfall",
 
-  m.fund_transferred_to_other_sku AS "Fund Transferred to Other SKU",
+  out.fund_transferred_to_other_sku AS "Fund Transferred to Other SKU",
 
-  -- Variance: ROUND(AmountReceived - AmountDistributed - FundTransferredToOther, 6)
-  ROUND(m.sales_proceeds -
-    (m.management_fee_paid + m.admin_fee_paid + m.additional_admin_fee_paid +
-     m.interest_difference_paid + m.senior_principal_paid + m.senior_interest_paid +
-     m.senior_add_interest_paid + m.junior_principal_paid + m.junior_interest_paid +
-     m.junior_add_interest_paid) -
-    m.fund_transferred_to_other_sku, 6) AS "Variance",
+  -- Variance
+  ROUND(inf.sales_proceeds -
+    (out.management_fee_paid + out.admin_fee_paid + out.additional_admin_fee_paid +
+     out.interest_difference_paid + out.senior_principal_paid + out.senior_interest_paid +
+     out.senior_add_interest_paid + out.junior_principal_paid + out.junior_interest_paid +
+     out.junior_add_interest_paid) -
+    out.fund_transferred_to_other_sku, 6) AS "Variance",
 
-  -- Outstanding flags (IF Outstanding < 0 THEN "Yes" ELSE "-")
-  CASE WHEN (COALESCE(e.management_fee_expected, 0) - m.management_fee_paid) < 0 THEN 'Yes' ELSE '-' END AS "Management Fee",
-  CASE WHEN (COALESCE(e.admin_fee_expected, 0) - m.admin_fee_paid) < 0 THEN 'Yes' ELSE '-' END AS "Adminstrative Fee",
-  CASE WHEN (COALESCE(e.interest_difference_expected, 0) - m.interest_difference_paid) < 0 THEN 'Yes' ELSE '-' END AS "Interest Difference",
-  CASE WHEN (COALESCE(e.senior_principal_expected, 0) - m.senior_principal_paid) < 0 THEN 'Yes' ELSE '-' END AS "Senior Principal",
-  CASE WHEN (COALESCE(e.senior_interest_expected, 0) - m.senior_interest_paid) < 0 THEN 'Yes' ELSE '-' END AS "Senior Interest",
-  CASE WHEN (COALESCE(e.junior_principal_expected, 0) - m.junior_principal_paid) < 0 THEN 'Yes' ELSE '-' END AS "Junior Principal",
-  CASE WHEN (COALESCE(e.junior_interest_expected, 0) - m.junior_interest_paid) < 0 THEN 'Yes' ELSE '-' END AS "Junior Interest",
+  -- Outstanding flags
+  CASE WHEN (COALESCE(e.management_fee_expected, 0) - out.management_fee_paid) < 0 THEN 'Yes' ELSE '-' END AS "Management Fee",
+  CASE WHEN (COALESCE(e.admin_fee_expected, 0) - out.admin_fee_paid) < 0 THEN 'Yes' ELSE '-' END AS "Adminstrative Fee",
+  CASE WHEN (COALESCE(e.interest_difference_expected, 0) - out.interest_difference_paid) < 0 THEN 'Yes' ELSE '-' END AS "Interest Difference",
+  CASE WHEN (COALESCE(e.senior_principal_expected, 0) - out.senior_principal_paid) < 0 THEN 'Yes' ELSE '-' END AS "Senior Principal",
+  CASE WHEN (COALESCE(e.senior_interest_expected, 0) - out.senior_interest_paid) < 0 THEN 'Yes' ELSE '-' END AS "Senior Interest",
+  CASE WHEN (COALESCE(e.junior_principal_expected, 0) - out.junior_principal_paid) < 0 THEN 'Yes' ELSE '-' END AS "Junior Principal",
+  CASE WHEN (COALESCE(e.junior_interest_expected, 0) - out.junior_interest_paid) < 0 THEN 'Yes' ELSE '-' END AS "Junior Interest",
 
-  -- Settled flags (IF Outstanding <= 0 THEN "Yes" ELSE "-")
-  CASE WHEN (COALESCE(e.management_fee_expected, 0) - m.management_fee_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Management Fee Settled",
-  CASE WHEN (COALESCE(e.admin_fee_expected, 0) - m.admin_fee_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Adminstrative Fee Settled",
-  CASE WHEN (COALESCE(e.interest_difference_expected, 0) - m.interest_difference_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Interest Difference Settled",
-  CASE WHEN (COALESCE(e.senior_principal_expected, 0) - m.senior_principal_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Senior Principal Settled",
-  CASE WHEN (COALESCE(e.senior_interest_expected, 0) - m.senior_interest_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Senior Interest Settled",
-  CASE WHEN (COALESCE(e.junior_principal_expected, 0) - m.junior_principal_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Junior Principal Settled",
-  CASE WHEN (COALESCE(e.junior_interest_expected, 0) - m.junior_interest_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Junior Interest Settled",
+  -- Settled flags
+  CASE WHEN (COALESCE(e.management_fee_expected, 0) - out.management_fee_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Management Fee Settled",
+  CASE WHEN (COALESCE(e.admin_fee_expected, 0) - out.admin_fee_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Adminstrative Fee Settled",
+  CASE WHEN (COALESCE(e.interest_difference_expected, 0) - out.interest_difference_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Interest Difference Settled",
+  CASE WHEN (COALESCE(e.senior_principal_expected, 0) - out.senior_principal_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Senior Principal Settled",
+  CASE WHEN (COALESCE(e.senior_interest_expected, 0) - out.senior_interest_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Senior Interest Settled",
+  CASE WHEN (COALESCE(e.junior_principal_expected, 0) - out.junior_principal_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Junior Principal Settled",
+  CASE WHEN (COALESCE(e.junior_interest_expected, 0) - out.junior_interest_paid) <= 0 THEN 'Yes' ELSE '-' END AS "Junior Interest Settled",
 
   -- Amount Received Breakdown
-  m.sales_proceeds AS "Sales Proceeds",
-  m.merchant_top_up AS "Merchant Top Up",
-  m.disbursement_surplus AS "Disbursement Surplus",
-  m.fund_transferred_from_other_sku AS "Fund Transferred from Other SKU",
-
-  -- Other: ROUND(AmountReceived - SUM(breakdown), 6)
-  ROUND(m.sales_proceeds - m.sales_proceeds, 6) AS "Other",
+  inf.sales_proceeds AS "Sales Proceeds",
+  inf.merchant_top_up AS "Merchant Top Up",
+  inf.disbursement_surplus AS "Disbursement Surplus",
+  inf.fund_transferred_from_other_sku AS "Fund Transferred from Other SKU",
+  ROUND(inf.sales_proceeds - inf.sales_proceeds, 6) AS "Other",
 
   -- Paid Amounts
-  m.management_fee_paid AS "Management Fee Paid",
-  m.admin_fee_paid AS "Administrative Fee Paid",
-  m.additional_admin_fee_paid AS "Additional Administrative Fee Paid",
-  m.interest_difference_paid AS "Interest Difference Paid",
-  m.senior_principal_paid AS "Senior Principal Paid",
-  m.senior_interest_paid AS "Senior Interest Paid",
-  m.senior_add_interest_paid AS "Senior Additional Interest Paid",
-  m.junior_principal_paid AS "Junior Principal Paid",
-  m.junior_interest_paid AS "Junior Interest Paid",
-  m.junior_add_interest_paid AS "Junior Additional Interest Paid",
+  out.management_fee_paid AS "Management Fee Paid",
+  out.admin_fee_paid AS "Administrative Fee Paid",
+  out.additional_admin_fee_paid AS "Additional Administrative Fee Paid",
+  out.interest_difference_paid AS "Interest Difference Paid",
+  out.senior_principal_paid AS "Senior Principal Paid",
+  out.senior_interest_paid AS "Senior Interest Paid",
+  out.senior_add_interest_paid AS "Senior Additional Interest Paid",
+  out.junior_principal_paid AS "Junior Principal Paid",
+  out.junior_interest_paid AS "Junior Interest Paid",
+  out.junior_add_interest_paid AS "Junior Additional Interest Paid",
 
   -- Expected Amounts
   COALESCE(e.management_fee_expected, 0.00) AS "Management Fee Expected",
@@ -266,15 +241,17 @@ SELECT
   COALESCE(e.junior_principal_expected, 0.00) AS "Junior Principal Expected",
   COALESCE(e.junior_interest_expected, 0.00) AS "Junior Interest Expected",
 
-  -- Outstanding Amounts: ROUND(Expected - Paid, 6)
-  ROUND(COALESCE(e.management_fee_expected, 0.00) - m.management_fee_paid, 6) AS "Management Fee Outstanding",
-  ROUND(COALESCE(e.admin_fee_expected, 0.00) - m.admin_fee_paid, 6) AS "Administrative Fee Outstanding",
-  ROUND(COALESCE(e.interest_difference_expected, 0.00) - m.interest_difference_paid, 6) AS "Interest Difference Outstanding",
-  ROUND(COALESCE(e.senior_principal_expected, 0.00) - m.senior_principal_paid, 6) AS "Senior Principal Outstanding",
-  ROUND(COALESCE(e.senior_interest_expected, 0.00) - m.senior_interest_paid, 6) AS "Senior Interest Outstanding",
-  ROUND(COALESCE(e.junior_principal_expected, 0.00) - m.junior_principal_paid, 6) AS "Junior Principal Outstanding",
-  ROUND(COALESCE(e.junior_interest_expected, 0.00) - m.junior_interest_paid, 6) AS "Junior Interest Outstanding"
+  -- Outstanding Amounts
+  ROUND(COALESCE(e.management_fee_expected, 0.00) - out.management_fee_paid, 6) AS "Management Fee Outstanding",
+  ROUND(COALESCE(e.admin_fee_expected, 0.00) - out.admin_fee_paid, 6) AS "Administrative Fee Outstanding",
+  ROUND(COALESCE(e.interest_difference_expected, 0.00) - out.interest_difference_paid, 6) AS "Interest Difference Outstanding",
+  ROUND(COALESCE(e.senior_principal_expected, 0.00) - out.senior_principal_paid, 6) AS "Senior Principal Outstanding",
+  ROUND(COALESCE(e.senior_interest_expected, 0.00) - out.senior_interest_paid, 6) AS "Senior Interest Outstanding",
+  ROUND(COALESCE(e.junior_principal_expected, 0.00) - out.junior_principal_paid, 6) AS "Junior Principal Outstanding",
+  ROUND(COALESCE(e.junior_interest_expected, 0.00) - out.junior_interest_paid, 6) AS "Junior Interest Outstanding"
 
-FROM sku_metrics m
-LEFT JOIN expected_values e ON e.sku_id = m.sku_id
-ORDER BY m.sku_id;
+FROM sku_universe u
+LEFT JOIN inflow_metrics inf ON inf.sku_id = u.sku_id
+LEFT JOIN outflow_metrics out ON out.sku_id = u.sku_id
+LEFT JOIN expected_values e ON e.sku_id = u.sku_id
+ORDER BY u.sku_id;

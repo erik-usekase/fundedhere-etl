@@ -17,13 +17,14 @@ sku_universe AS (
   FROM raw.repmt_sku s
   WHERE s.sku_id IS NOT NULL AND s.sku_id <> '' AND s.sku_id <> 'SKU ID'
 ),
--- Amount Received: ONLY merchant-repayment transactions (matching original test)
+-- Amount Received: ALL inflows to SKU EXCEPT 'note-issued-transfer-to-sku' (initial funding)
+-- Includes: merchant-repayment, transfer-to-another-sku, blank remarks, etc.
 -- Uses receiver_virtual_account_id = SKU (direct match, NOT VA mapping)
 amount_received_calc AS (
   SELECT
     u.sku_id,
     COALESCE(SUM(
-      CASE WHEN v.remarks = 'merchant-repayment'
+      CASE WHEN COALESCE(v.remarks, '') <> 'note-issued-transfer-to-sku'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
         AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
@@ -145,12 +146,12 @@ sku_universe AS (
   FROM raw.repmt_sku s
   WHERE s.sku_id IS NOT NULL AND s.sku_id <> '' AND s.sku_id <> 'SKU ID'
 ),
--- Amount Received: ONLY merchant-repayment (matching Sheet 2a)
+-- Amount Received: ALL inflows to SKU EXCEPT 'note-issued-transfer-to-sku' (matching Sheet 2a)
 amount_received_calc AS (
   SELECT
     u.sku_id,
     COALESCE(SUM(
-      CASE WHEN v.remarks = 'merchant-repayment'
+      CASE WHEN COALESCE(v.remarks, '') <> 'note-issued-transfer-to-sku'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
         AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
