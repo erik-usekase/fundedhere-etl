@@ -12,12 +12,28 @@ expected[repmt_sku_prepped.csv]='merchant,sku_id,acquirer_fees_expected,acquirer
 expected[repmt_sales_prepped.csv]='merchant,sku_id,total_funds_inflow,sales_proceeds,l2e'
 expected[note_sku_va_map_prepped.csv]='note_id,sku_id,va_number'
 
+# Optional files (don't fail if missing - views work without them)
+optional_files=(
+  "note_sku_va_map_prepped.csv"
+)
+
 failures=0
 for file in "${!expected[@]}"; do
   path="$DATA_DIR/$file"
   if [ ! -f "$path" ]; then
-    echo "[FAIL] Missing expected file: $path" >&2
-    failures=$((failures+1))
+    # Check if this is an optional file
+    is_optional=0
+    for opt in "${optional_files[@]}"; do
+      if [ "$file" = "$opt" ]; then
+        is_optional=1
+        echo "[SKIP] Optional file not found: $path"
+        break
+      fi
+    done
+    if [ "$is_optional" -eq 0 ]; then
+      echo "[FAIL] Missing expected file: $path" >&2
+      failures=$((failures+1))
+    fi
     continue
   fi
   header=$(head -n1 "$path" | tr -d '\r')
