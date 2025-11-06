@@ -17,6 +17,7 @@ Further reading:
 - [Architecture & workflow](docs/EXISTING_ANALYSIS.md)
 - [Reconciliation logic](docs/RECONCILIATION_ANALYSIS.md)
 - [CSV ↔ SQL mapping](docs/FORMULA_MAPPING.md)
+- [Database tools setup](docs/DATABASE_TOOLS.md) 🔧 - Connect pgAdmin, HeidiSQL, DBeaver, etc.
 - [Fast CSV loading guide](docs/FAST_LOADING.md) ⚡
 - [View optimization guide](docs/VIEW_OPTIMIZATION.md) 🚀
 - [Multi-period support guide](docs/MULTI_PERIOD.md) 📅
