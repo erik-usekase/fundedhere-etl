@@ -2,8 +2,10 @@
 
 from pathlib import Path
 from typing import Any
-import psycopg
-from psycopg.rows import dict_row
+from contextlib import contextmanager
+from sqlalchemy import create_engine, text, Engine
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import OperationalError
 
 from . import logger
 from .config import Settings
@@ -19,6 +21,8 @@ class DatabaseManager:
 
     def __init__(self, settings: Settings):
         self.settings = settings
+        self.engine = self._create_engine()
+        self.SessionLocal = sessionmaker(bind=self.engine, autoflush=False, autocommit=False)
         logger.info(
             "Database manager initialized",
             mode=settings.db_mode,
@@ -26,43 +30,62 @@ class DatabaseManager:
             database=settings.pg_database,
         )
 
-    def get_conninfo(self) -> str:
-        """Build PostgreSQL connection string"""
-        return (
-            f"host={self.settings.pg_host} "
-            f"port={self.settings.pg_port} "
-            f"dbname={self.settings.pg_database} "
-            f"user={self.settings.pg_user} "
-            f"password={self.settings.pg_password} "
-            f"sslmode={self.settings.pg_sslmode}"
+    def _create_engine(self) -> Engine:
+        """Create SQLAlchemy engine with connection pooling"""
+        connection_url = (
+            f"postgresql+psycopg://{self.settings.pg_user}:{self.settings.pg_password}"
+            f"@{self.settings.pg_host}:{self.settings.pg_port}/{self.settings.pg_database}"
+            f"?sslmode={self.settings.pg_sslmode}"
         )
-
-    def connect(self):
-        """
-        Create a new database connection.
-
-        Returns:
-            psycopg.Connection with dict_row factory
-        """
         try:
-            conn = psycopg.connect(
-                self.get_conninfo(),
-                row_factory=dict_row,
+            engine = create_engine(
+                connection_url,
+                pool_pre_ping=True,  # Verify connections before using
+                echo=False,
             )
-            logger.debug("Database connection established")
-            return conn
-        except psycopg.OperationalError as e:
+            logger.debug("SQLAlchemy engine created")
+            return engine
+        except OperationalError as e:
             logger.error(
-                "Failed to connect to database",
+                "Failed to create database engine",
                 error=str(e),
                 host=self.settings.pg_host,
             )
             raise
 
+    @contextmanager
+    def connect(self):
+        """
+        Create a new database connection.
+
+        Returns:
+            SQLAlchemy Connection context manager
+        """
+        connection = self.engine.connect()
+        try:
+            logger.debug("Database connection established")
+            yield connection
+        finally:
+            connection.close()
+
+    @contextmanager
+    def session(self) -> Session:
+        """
+        Create a new database session.
+
+        Returns:
+            SQLAlchemy Session context manager
+        """
+        session = self.SessionLocal()
+        try:
+            yield session
+        finally:
+            session.close()
+
     def execute_sql(self, sql: str) -> None:
         """Execute SQL statement (DDL/DML)"""
         with self.connect() as conn:
-            conn.execute(sql)
+            conn.execute(text(sql))
             conn.commit()
 
     def execute_file(self, filepath: Path) -> None:
@@ -119,8 +142,8 @@ class DatabaseManager:
         logger.info("Refreshing materialized views")
         with self.connect() as conn:
             # Use parallel refresh function for better performance
-            result = conn.execute("SELECT * FROM core.refresh_all_parallel();")
-            rows = result.fetchall()
+            result = conn.execute(text("SELECT * FROM core.refresh_all_parallel();"))
+            rows = result.mappings().fetchall()
             conn.commit()
 
             for row in rows:
@@ -136,5 +159,5 @@ class DatabaseManager:
     def query(self, sql: str) -> list[dict[str, Any]]:
         """Execute query and return results as list of dicts"""
         with self.connect() as conn:
-            cursor = conn.execute(sql)
-            return cursor.fetchall()
+            result = conn.execute(text(sql))
+            return [dict(row) for row in result.mappings().fetchall()]

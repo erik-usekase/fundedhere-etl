@@ -4,6 +4,7 @@ import csv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List
+from sqlalchemy import text
 
 from . import logger
 from .config import Settings
@@ -48,7 +49,7 @@ class CSVLoader:
             with self.db.connect() as conn:
                 # Truncate if requested
                 if truncate:
-                    conn.execute(f"TRUNCATE TABLE raw.{table} CASCADE")
+                    conn.execute(text(f"TRUNCATE TABLE raw.{table} CASCADE"))
                     logger.debug("Table truncated", table=table)
 
                 # Get column names from CSV header
@@ -57,18 +58,18 @@ class CSVLoader:
                     headers = next(reader)
                     column_list = ", ".join(headers)
 
-                # Use COPY for fast bulk load
-                row_count = 0
+                # Use COPY for fast bulk load via raw dbapi connection
+                raw_conn = conn.connection
                 with csv_file.open("r", encoding="utf-8-sig") as f:
-                    with conn.cursor().copy(
+                    with raw_conn.cursor().copy(
                         f"COPY raw.{table} ({column_list}) FROM STDIN WITH (FORMAT CSV, HEADER true)"
                     ) as copy:
                         while data := f.read(8192):
                             copy.write(data)
 
                 # Get row count
-                result = conn.execute(f"SELECT COUNT(*) as count FROM raw.{table}")
-                row_count = result.fetchone()["count"]
+                result = conn.execute(text(f"SELECT COUNT(*) as count FROM raw.{table}"))
+                row_count = result.mappings().fetchone()["count"]
 
                 conn.commit()
 
@@ -200,25 +201,25 @@ class CSVLoader:
         with self.db.connect() as conn:
             # Drop FK constraints temporarily (mappings loaded before ref.sku populated)
             conn.execute(
-                "ALTER TABLE ref.note_sku_va_map DROP CONSTRAINT IF EXISTS note_sku_va_map_sku_id_fkey"
+                text("ALTER TABLE ref.note_sku_va_map DROP CONSTRAINT IF EXISTS note_sku_va_map_sku_id_fkey")
             )
             conn.execute(
-                "ALTER TABLE ref.note_sku_va_map DROP CONSTRAINT IF EXISTS note_sku_va_map_merchant_id_fkey"
+                text("ALTER TABLE ref.note_sku_va_map DROP CONSTRAINT IF EXISTS note_sku_va_map_merchant_id_fkey")
             )
 
             # Truncate and load
-            conn.execute("TRUNCATE TABLE ref.note_sku_va_map CASCADE")
+            conn.execute(text("TRUNCATE TABLE ref.note_sku_va_map CASCADE"))
 
             with csv_file.open("r", encoding="utf-8-sig") as f:
                 reader = csv.DictReader(f)
                 rows_loaded = 0
                 for row in reader:
                     conn.execute(
-                        """
+                        text("""
                         INSERT INTO ref.note_sku_va_map (sku_id, va_number)
-                        VALUES (%(sku_id)s, %(va_number)s)
+                        VALUES (:sku_id, :va_number)
                         ON CONFLICT DO NOTHING
-                        """,
+                        """),
                         {"sku_id": row["sku_id"], "va_number": row["va_number"]},
                     )
                     rows_loaded += 1

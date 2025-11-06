@@ -1,71 +1,14 @@
 # Quick Start Guide
 
-## One Command Setup
-
-Run the complete ETL pipeline with a single command:
-
-```bash
-make etl-complete
-```
-
-**What it does:**
-1. ✅ Starts PostgreSQL database (Docker)
-2. ✅ Initializes database schema
-3. ✅ Deploys optimized views
-4. ✅ Loads CSV data (parallel)
-5. ✅ Generates SKU mappings
-6. ✅ Refreshes materialized views
-7. ✅ Starts web interface
-
-**Time:** ~3 minutes
-
-**Output:**
-```
-==========================================
-Complete ETL Pipeline
-==========================================
-
-Step 1/7: Starting database...
-Step 2/7: Initializing database schema...
-Step 3/7: Deploying optimized views...
-Step 4/7: Loading CSV data...
-Step 5/7: Generating and loading mappings...
-Step 6/7: Refreshing materialized views...
-Step 7/7: Starting web interface...
-
-==========================================
-✓ ETL Pipeline Complete!
-==========================================
-
-Web Interface: http://localhost:8080
-Database:      postgresql://appuser:changeme@localhost:5433/appdb
-
-Quick commands:
-  make counts           - View row counts
-  make periods-list     - Show loaded periods
-  make etl-reload       - Reload ETL (new data)
-  make down             - Stop everything
-```
+Get the FundedHere ETL pipeline running in under 5 minutes.
 
 ## Prerequisites
 
-### Windows (Git Bash)
+1. **Docker Desktop** - Running and accessible
+2. **Git Bash** (Windows) or terminal (Mac/Linux)
+3. **CSV Data Files** - Place in `data/inc_data/` directory
 
-1. **Fix line endings (one-time):**
-```bash
-bash scripts/setup_gitbash.sh
-```
-
-2. **Verify .env file:**
-```bash
-cat .env
-# Should show: PGHOST=localhost, PGPORT=5433
-# Should NOT have: DB_MODE=host
-```
-
-### CSV Files
-
-Place your CSV files in `data/inc_data/`:
+### Required CSV Files
 
 ```bash
 data/inc_data/
@@ -75,284 +18,278 @@ data/inc_data/
 └── repmt_sales_2025-09.csv
 ```
 
-**Naming pattern:** `{table}_YYYY-MM.csv` or `{table}_YYYY-MM.csv.gz`
+**Naming pattern:** `{table}_YYYY-MM.csv` or `{table}_full.csv`
 
-## Run Everything
-
-```bash
-# Single command for complete setup
-make etl-complete
-```
-
-Wait ~3 minutes, then open: **http://localhost:8080**
-
-## Web Interface Features
-
-### 🔄 Reload ETL Button
-
-Click **"🔄 Reload ETL"** to reload data without restarting:
-- Reloads CSV files
-- Regenerates mappings
-- Refreshes all views
-- Takes 30-60 seconds
-
-**Use when:**
-- You add new CSV files
-- You update existing CSV files
-- You want to refresh data
-
-### ℹ️ Status Button
-
-Click **"ℹ️ Status"** to see:
-- Row counts per table
-- Available periods
-- Last refresh time
-- System timestamp
-
-### Predefined Queries
-
-Select from dropdowns:
-- **Period Management** - View loaded periods
-- **Sheet1** - Level 1 reconciliation
-- **Sheet2a** - Waterfall execution
-- **Sheet2b** - UI vs Cashflow
-
-### Custom Queries
-
-Write any SELECT query:
-```sql
-SELECT * FROM mart.v_level1
-WHERE "Variance" > 0.02
-ORDER BY "Variance" DESC
-LIMIT 10
-```
-
-### Conditional Formatting
-
-- **Red** - Negative values
-- **Yellow** - Variance > 0.02
-- **Gray** - Zero/default values
-
-## Common Commands
+## Quick Start (3 Commands)
 
 ```bash
-# Complete pipeline
-make etl-complete
+# 1. Start database
+make up-wait
 
-# Reload data (keep database running)
-make etl-reload
+# 2. Run complete ETL pipeline (in Docker container)
+make container-etl-verify
 
-# View row counts
-make counts
-
-# Show loaded periods
-make periods-list
-
-# Stop everything
-make down
-
-# Restart everything
-make down && make etl-complete
-
-# View logs
-make logs              # Database logs
-make webapp-logs       # Web interface logs
-
-# Run custom SQL
+# 3. Query the data
 make sql CMD="SELECT COUNT(*) FROM mart.v_level1;"
 ```
 
-## Reload ETL (Add New Data)
+**Time:** ~2 minutes total
 
-### From Command Line
+**Result:** Database loaded with 366 SKUs across 3 reconciliation views.
+
+## What Just Happened?
+
+1. **`make up-wait`** - Started PostgreSQL database in Docker, waited for it to be healthy
+2. **`make container-etl-verify`** - Ran full ETL pipeline:
+   - Prepared CSV files (normalized headers)
+   - Initialized database schema (5 initdb + 8 phase2 SQL files)
+   - Loaded 32,049 rows across 4 tables (parallel)
+   - Loaded 366 SKU-VA mappings
+   - Refreshed materialized views
+   - Validated all 3 sheets have 366 rows
+
+3. **`make sql`** - Queried the final view
+
+## Host Machine ETL (Alternative)
+
+Run ETL commands directly on your machine (requires uv):
 
 ```bash
-# Add new CSV files to data/inc_data/
+# Install dependencies (one-time)
+uv sync
+
+# Run ETL pipeline step-by-step
+uv run fundedhere-etl prep              # Prepare CSVs
+uv run fundedhere-etl bootstrap         # Initialize schema
+uv run fundedhere-etl load              # Load data (parallel)
+uv run fundedhere-etl load-mapping      # Load mappings
+uv run fundedhere-etl refresh           # Refresh views
+```
+
+## Available Commands
+
+### Python CLI (Host)
+
+```bash
+uv run fundedhere-etl --help            # Show all commands
+uv run fundedhere-etl prep              # Prepare CSV files
+uv run fundedhere-etl load              # Load CSVs (parallel)
+uv run fundedhere-etl bootstrap         # Initialize schema
+uv run fundedhere-etl refresh           # Refresh materialized views
+uv run fundedhere-etl load-mapping      # Load SKU-VA mappings
+uv run fundedhere-etl pipeline          # Complete ETL workflow
+```
+
+### Make Targets
+
+```bash
+# Database management
+make up                    # Start PostgreSQL database
+make up-wait               # Start and wait for database ready
+make down                  # Stop database
+make logs                  # View database logs
+
+# ETL pipeline
+make container-etl-verify  # Full ETL in container (recommended)
+make etl-prep              # Prepare CSV files
+make etl-load              # Load data and refresh views
+make etl-verify            # Full pipeline + tests
+
+# Queries
+make sql CMD="SELECT..."   # Run custom SQL
+make counts                # Show row counts
+make preview-level1        # Preview Level 1 data
+
+# Help
+make help                  # Show all targets
+```
+
+## Query the Data
+
+### Using psql
+
+```bash
+# Quick query
+make sql CMD="SELECT * FROM mart.v_level1 LIMIT 5;"
+
+# Interactive session
+docker exec -it app-postgres psql -U appuser -d appdb
+```
+
+### Using Database Tools
+
+Connect pgAdmin, HeidiSQL, DBeaver, etc.:
+
+- **Host:** localhost
+- **Port:** 5433 (not 5432!)
+- **Database:** appdb
+- **Username:** appuser
+- **Password:** changeme
+
+See [docs/DATABASE_TOOLS.md](docs/DATABASE_TOOLS.md) for detailed setup.
+
+## View the Results
+
+### Three Reconciliation Views
+
+```sql
+-- Level 1: Cash vs. Ledger (366 SKUs)
+SELECT * FROM mart.v_level1 LIMIT 10;
+
+-- Level 2a: Transaction Waterfall (366 SKUs)
+SELECT * FROM mart.v_level2a LIMIT 10;
+
+-- Level 2b: Payment Component Summary (366 SKUs)
+SELECT * FROM mart.v_level2b LIMIT 10;
+```
+
+### Check Row Counts
+
+```bash
+make counts
+```
+
+**Expected output:**
+```
+ schema_table          | row_count
+-----------------------+-----------
+ raw.external_accounts |      2718
+ raw.va_txn            |     28599
+ raw.repmt_sku         |       366
+ raw.repmt_sales       |       366
+ mart.v_level1         |       366
+ mart.v_level2a        |       366
+ mart.v_level2b        |       366
+```
+
+## Reload New Data
+
+```bash
+# 1. Add new CSV files to data/inc_data/
 cp /path/to/new/*.csv data/inc_data/
 
-# Reload ETL
-make etl-reload
-```
+# 2. Reload ETL
+make container-etl-verify
 
-**Output:**
-```
-==========================================
-Reloading ETL Data
-==========================================
-
-Step 1/4: Loading CSV data...
-Step 2/4: Regenerating mappings...
-Step 3/4: Refreshing views...
-Step 4/4: Validating...
-
-==========================================
-✓ ETL Reload Complete!
-==========================================
-```
-
-### From Web Interface
-
-1. Add new CSV files to `data/inc_data/`
-2. Open http://localhost:8080
-3. Click **"🔄 Reload ETL"**
-4. Confirm the action
-5. Wait 30-60 seconds
-6. Click **"ℹ️ Status"** to verify new data
-
-## Multi-Period Support
-
-Load multiple months of data:
-
-```bash
-# Place all periods
-data/inc_data/
-├── external_accounts_2025-09.csv
-├── va_txn_2025-09.csv
-├── ...
-├── external_accounts_2025-10.csv
-├── va_txn_2025-10.csv
-└── ...
-
-# Load all periods
-make load-multi-period
-
-# Or incremental (append new period)
-make load-multi-append
-
-# View periods
-make periods-list
-```
-
-## Troubleshooting
-
-### `: command not found`
-```bash
-# Fix line endings
-bash scripts/setup_gitbash.sh
-```
-
-### `could not translate host name "postgres"`
-```bash
-# Check .env file
-cat .env
-# Should NOT have: DB_MODE=host
-# Should have: PGHOST=localhost, PGPORT=5433
-
-# Fix if needed:
-sed -i '/DB_MODE=host/d' .env
-```
-
-### Database won't start
-```bash
-# Check Docker
-docker ps
-
-# Restart
-make down
-make up-wait
-```
-
-### Web interface not accessible
-```bash
-# Check if running
-docker ps | grep webapp
-
-# Restart
-make webapp-down
-make webapp-up
-
-# View logs
-make webapp-logs
-```
-
-### No data showing
-```bash
-# Check row counts
-make counts
-
-# Refresh views
-make refresh-optimized
-
-# Reload data
-make etl-reload
+# Or step-by-step on host:
+uv run fundedhere-etl prep
+uv run fundedhere-etl load --mode parallel --truncate
+uv run fundedhere-etl refresh
 ```
 
 ## Development Workflow
 
-### Daily Use
+### Morning: Start Up
 
 ```bash
-# Morning: Start everything
-make etl-complete
-
-# Work with data via web interface
-# http://localhost:8080
-
-# Evening: Stop everything
-make down
+make up-wait                  # Start database
+make container-etl-verify     # Load data
 ```
 
-### Add New Data
+### During Day: Work with Data
 
 ```bash
-# Add new CSV file
-cp new_data.csv data/inc_data/
-
-# Option 1: Reload from command line
-make etl-reload
-
-# Option 2: Reload from web interface
-# Click "🔄 Reload ETL" button
+# Query via SQL tools (port 5433)
+# Or command line:
+make sql CMD="SELECT * FROM mart.v_level1 WHERE \"Variance\" > 0.02;"
 ```
 
-### Check Status
+### Evening: Shutdown
 
 ```bash
-# Command line
+make down                     # Stop database
+```
+
+## Troubleshooting
+
+### Database Connection Refused
+
+```bash
+# Check if database is running
+docker ps | grep postgres
+
+# If not running:
+make up-wait
+```
+
+### No Data in Views
+
+```bash
+# Check CSV files exist
+ls -la data/inc_data/*.csv
+
+# Check row counts
 make counts
-make periods-list
 
-# Web interface
-# Click "ℹ️ Status" button
+# Reload data
+make container-etl-verify
+```
+
+### Windows Git Bash Issues
+
+```bash
+# Fix line endings (one-time)
+bash scripts/setup_gitbash.sh
+
+# Verify .env file
+cat .env
+# Should show: PGHOST=localhost, PGPORT=5433
+```
+
+### Port 5433 Already in Use
+
+Change port in `.env`:
+```bash
+POSTGRES_PORT=5434
+```
+
+Then restart:
+```bash
+make down && make up-wait
 ```
 
 ## Next Steps
 
-- **Test it:** `make etl-complete`
-- **Add data:** Place CSV files in `data/inc_data/`
-- **Reload:** Click "🔄 Reload ETL" or run `make etl-reload`
-- **Query:** Use predefined queries or write custom SQL
-- **Compare periods:** Use period comparison queries
-- **Export:** Download results as CSV
+### Explore the Data
 
-## Documentation
+- **Connect database tool** - See [docs/DATABASE_TOOLS.md](docs/DATABASE_TOOLS.md)
+- **Run example queries** - See README.md Demo Queries section
+- **Review schemas** - Explore `raw.*`, `ref.*`, `core.*`, `mart.*`
 
-- **This file** - Quick start
-- **README.md** - Full documentation
-- **GITBASH_QUICKSTART.md** - Git Bash on Windows
-- **docs/MULTI_PERIOD.md** - Multi-period guide
-- **docs/VIEW_OPTIMIZATION.md** - Performance tuning
-- **docs/CONNECTION_FIX.md** - Connection troubleshooting
-- **docs/TEST_RUNS.md** - Test commands
+### Understand the Architecture
+
+- **Architecture overview** - [docs/EXISTING_ANALYSIS.md](docs/EXISTING_ANALYSIS.md)
+- **Reconciliation logic** - [docs/RECONCILIATION_ANALYSIS.md](docs/RECONCILIATION_ANALYSIS.md)
+- **CSV mappings** - [docs/FORMULA_MAPPING.md](docs/FORMULA_MAPPING.md)
+
+### Advanced Features
+
+- **Performance tuning** - [docs/VIEW_OPTIMIZATION.md](docs/VIEW_OPTIMIZATION.md)
+- **Multi-period loading** - [docs/MULTI_PERIOD.md](docs/MULTI_PERIOD.md)
+- **Testing guide** - [docs/TESTING.md](docs/TESTING.md)
 
 ## Summary
 
-**Single command setup:**
+**Fastest path:**
 ```bash
-make etl-complete
+make up-wait && make container-etl-verify
 ```
 
-**Reload data (command line):**
+**Query data:**
 ```bash
-make etl-reload
+make sql CMD="SELECT * FROM mart.v_level1 LIMIT 10;"
 ```
 
-**Reload data (web interface):**
-- Click "🔄 Reload ETL" at http://localhost:8080
+**Database tools:**
+- Host: localhost
+- Port: 5433
+- DB: appdb / User: appuser / Pass: changeme
 
-**Stop everything:**
+**Shutdown:**
 ```bash
 make down
 ```
 
-**That's it!** 🎉
+That's it! 🎉
+
+For detailed documentation, see [README.md](README.md).
