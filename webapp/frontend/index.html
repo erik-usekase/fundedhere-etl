@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FundedHere ETL Query Interface</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/dist/ag-grid-community.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/styles/ag-grid.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.0/styles/ag-theme-alpine.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>FundedHere ETL Query Interface</h1>
+            <div class="header-controls">
+                <div class="health-status" id="healthStatus">
+                    <span class="status-indicator" id="statusIndicator">●</span>
+                    <span id="statusText">Checking connection...</span>
+                </div>
+                <div class="etl-controls">
+                    <button id="reloadETL" class="btn-reload" title="Reload CSV data and refresh views">
+                        🔄 Reload ETL
+                    </button>
+                    <button id="showStatus" class="btn-status" title="Show system status">
+                        ℹ️ Status
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- ETL Status Modal -->
+        <div id="statusModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>ETL System Status</h2>
+                <div id="statusContent">
+                    <div class="status-loading">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="query-panel">
+            <div class="tab-nav">
+                <button class="tab-btn active" data-tab="predefined">Predefined Queries</button>
+                <button class="tab-btn" data-tab="custom">Custom Query</button>
+                <button class="tab-btn" data-tab="views">Views</button>
+            </div>
+
+            <!-- Predefined Queries Tab -->
+            <div class="tab-content active" id="predefined-tab">
+                <label for="querySelect">Select Query:</label>
+                <select id="querySelect">
+                    <option value="">-- Select a query --</option>
+                </select>
+                <button id="runPredefined" class="btn-primary">Execute Query</button>
+            </div>
+
+            <!-- Custom Query Tab -->
+            <div class="tab-content" id="custom-tab">
+                <label for="customSQL">SQL Query (SELECT only):</label>
+                <textarea id="customSQL" rows="5" placeholder="SELECT * FROM mart.v_level1 LIMIT 10"></textarea>
+                <button id="runCustom" class="btn-primary">Execute Query</button>
+            </div>
+
+            <!-- Views Tab -->
+            <div class="tab-content" id="views-tab">
+                <label for="viewSelect">Select View:</label>
+                <select id="viewSelect">
+                    <option value="level1">Sheet 1 (Level 1)</option>
+                    <option value="level2a">Sheet 2a (Level 2a)</option>
+                    <option value="level2b">Sheet 2b (Level 2b)</option>
+                </select>
+                <button id="runView" class="btn-primary">Load View</button>
+            </div>
+        </div>
+
+        <div class="results-panel">
+            <div class="results-header">
+                <div class="results-info">
+                    <span id="rowCount">0 rows</span>
+                    <span id="queryInfo"></span>
+                </div>
+                <div class="results-controls">
+                    <label for="columnFilter">Filter Column:</label>
+                    <select id="columnFilter">
+                        <option value="">-- Select column --</option>
+                    </select>
+                    <input type="text" id="filterValue" placeholder="Filter value...">
+                    <button id="applyFilter" class="btn-secondary">Apply Filter</button>
+                    <button id="clearFilters" class="btn-secondary">Clear Filters</button>
+                    <label for="pageSize">Rows per page:</label>
+                    <select id="pageSize">
+                        <option value="10" selected>10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="1000">All</option>
+                    </select>
+                </div>
+            </div>
+            <div id="resultsGrid" class="ag-theme-alpine" style="height: 600px; width: 100%;"></div>
+        </div>
+
+        <div class="query-builder-panel">
+            <h3>Query Builder</h3>
+            <p>Add additional filters to current results:</p>
+            <div class="builder-controls">
+                <select id="builderColumn">
+                    <option value="">-- Select column --</option>
+                </select>
+                <select id="builderOperator">
+                    <option value="=">=</option>
+                    <option value="!=">!=</option>
+                    <option value=">">&gt;</option>
+                    <option value="<">&lt;</option>
+                    <option value=">=">&gt;=</option>
+                    <option value="<=">&lt;=</option>
+                    <option value="LIKE">LIKE</option>
+                </select>
+                <input type="text" id="builderValue" placeholder="Value...">
+                <button id="addFilter" class="btn-secondary">Add Filter & Re-run</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+    <script src="/etl_controls.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+[project]
+name = "fundedhere-etl-webapp"
+version = "0.1.0"
+description = "Web query interface for fundedhere-etl"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "psycopg2-binary",
+    "pyyaml",
+    "pydantic",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

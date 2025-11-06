@@ -97,13 +97,13 @@ sqlf:
 > scripts/run_sql.sh -f "$(FILE)"
 
 refresh:
-> scripts/run_sql.sh -f scripts/sql-utils/refresh_core.sql
+> uv run fundedhere-etl refresh
 
 counts:
 > scripts/run_sql.sh -f scripts/sql-utils/counts.sql
 
 initdb bootstrap:
-> scripts/bootstrap_db.sh
+> uv run fundedhere-etl bootstrap
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CSV prep (uses Python utilities under ./scripts/)
@@ -131,7 +131,7 @@ prep-repmt-sales:
 > python3 scripts/prep_repmt_sales.py "$(SRC)" "$(OUT)"
 
 prep-all:
-> ./scripts/prep_all.sh "$(INC_DIR)"
+> uv run fundedhere-etl prep
 
 prep-map:
 > @echo "Skipping mapping generation (data format mismatch - note_id vs sku_id)"
@@ -143,10 +143,10 @@ etl-prep:
 
 etl-load:
 > $(MAKE) etl-prep
-> $(MAKE) initdb
-> $(MAKE) load-all-fresh
-> $(MAKE) load-mapping
-> $(MAKE) refresh
+> uv run fundedhere-etl bootstrap
+> uv run fundedhere-etl load --mode parallel --truncate
+> uv run fundedhere-etl load-mapping
+> uv run fundedhere-etl refresh
 
 etl-verify:
 > $(MAKE) etl-load
@@ -174,7 +174,7 @@ load-repmt-sales:
 > scripts/load_raw.sh raw.repmt_sales "merchant,sku_id,total_funds_inflow,sales_proceeds,l2e" "$(FILE)"
 
 load-mapping:
-> scripts/load_note_sku_va_map.sh "$(if $(strip $(FILE)),$(FILE),$(INC_DIR)/note_sku_va_map_prepped.csv)"
+> uv run fundedhere-etl load-mapping $(if $(strip $(FILE)),--mapping-file "$(FILE)")
 
 # Load only PREPPED CSVs (explicit; avoids picking up raw files)
 load-all:
@@ -188,10 +188,9 @@ load-all:
 > $(MAKE) load-repmt-sku   FILE="$(INC_DIR)/repmt_sku_prepped.csv"
 > $(MAKE) load-repmt-sales FILE="$(INC_DIR)/repmt_sales_prepped.csv"
 
-# Truncate then load-all (clean reload)
+# Truncate then load-all (clean reload) - uses Python CLI
 load-all-fresh:
-> scripts/run_sql.sh -c "truncate raw.external_accounts, raw.va_txn, raw.repmt_sku, raw.repmt_sales;"
-> $(MAKE) load-all
+> uv run fundedhere-etl load --mode parallel --truncate
 
 # Quick health checks
 test-health:

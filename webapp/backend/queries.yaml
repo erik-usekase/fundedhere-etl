@@ -1,0 +1,233 @@
+# Predefined queries for fundedhere-etl web interface
+
+# Period Management
+period_list_available:
+  name: "Available Periods"
+  description: "List all periods with data loaded"
+  category: "periods"
+  sql: |
+    SELECT * FROM mart.v_available_periods
+
+period_coverage:
+  name: "Period Coverage Summary"
+  description: "Show data coverage and record counts by period"
+  category: "periods"
+  sql: |
+    SELECT * FROM mart.v_period_coverage
+
+period_latest:
+  name: "Latest Period Only"
+  description: "Show Level 1 data for most recent period"
+  category: "periods"
+  sql: |
+    SELECT * FROM mart.v_latest_period
+
+period_load_history:
+  name: "Load History"
+  description: "Show file loading history with timestamps"
+  category: "periods"
+  sql: |
+    SELECT * FROM mart.v_load_history
+
+# Sheet1 (Level-1) Queries
+sheet1_variance_gt_threshold:
+  name: "SKUs with Variance > Threshold"
+  description: "Show all SKUs where variance exceeds 0.02 threshold"
+  category: "sheet1"
+  sql: |
+    SELECT * FROM mart.v_level1
+    WHERE ABS("Variance") > 0.02
+    ORDER BY ABS("Variance") DESC
+
+sheet1_top_amount_pulled:
+  name: "Top 10 SKUs by Amount Received"
+  description: "Show top 10 SKUs ranked by Amount Received"
+  category: "sheet1"
+  sql: |
+    SELECT
+      "SKU ID",
+      "Merchant",
+      "Amount Received",
+      "Amount Distributed Down the Repayment Waterfall",
+      "Variance"
+    FROM mart.v_level1
+    ORDER BY "Amount Received" DESC
+    LIMIT 10
+
+sheet1_negative_variance:
+  name: "Negative Variance Records"
+  description: "Show SKUs with negative variance only"
+  category: "sheet1"
+  sql: |
+    SELECT * FROM mart.v_level1
+    WHERE "Variance" < 0
+    ORDER BY "Variance" ASC
+
+sheet1_amount_received_zero:
+  name: "SKUs with Amount Received = 0"
+  description: "Show SKUs that have zero amount received"
+  category: "sheet1"
+  sql: |
+    SELECT * FROM mart.v_level1
+    WHERE "Amount Received" = 0
+
+sheet1_merchant_top_up:
+  name: "SKUs with Merchant Top Up"
+  description: "Show SKUs that received merchant top-up funds"
+  category: "sheet1"
+  sql: |
+    SELECT
+      "SKU ID",
+      "Merchant",
+      "Amount Received",
+      "Sales Proceeds",
+      "Merchant Top Up",
+      "Disbursement Surplus"
+    FROM mart.v_level1
+    WHERE "Merchant Top Up" > 0
+    ORDER BY "Merchant Top Up" DESC
+
+sheet1_outstanding_fees:
+  name: "SKUs with Outstanding Fees"
+  description: "Show SKUs with any outstanding fees"
+  category: "sheet1"
+  sql: |
+    SELECT
+      "SKU ID",
+      "Merchant",
+      "Management Fee Outstanding",
+      "Administrative Fee Outstanding",
+      "Interest Difference Outstanding",
+      "Senior Principal Outstanding",
+      "Senior Interest Outstanding",
+      "Junior Principal Outstanding",
+      "Junior Interest Outstanding"
+    FROM mart.v_level1
+    WHERE
+      "Management Fee Outstanding" <> 0 OR
+      "Administrative Fee Outstanding" <> 0 OR
+      "Interest Difference Outstanding" <> 0 OR
+      "Senior Principal Outstanding" <> 0 OR
+      "Senior Interest Outstanding" <> 0 OR
+      "Junior Principal Outstanding" <> 0 OR
+      "Junior Interest Outstanding" <> 0
+    ORDER BY "SKU ID"
+
+# Sheet2a (Level-2a) Queries
+sheet2a_outstanding_gt_zero:
+  name: "Outstanding Amounts > 0"
+  description: "Show SKUs with positive outstanding amounts"
+  category: "sheet2a"
+  sql: |
+    SELECT * FROM mart.v_level2a
+    WHERE
+      "Management Fee Outstanding" > 0 OR
+      "Administrative Fee Outstanding" > 0 OR
+      "Interest Difference Outstanding" > 0 OR
+      "Senior Principal Outstanding" > 0 OR
+      "Senior Interest Outstanding" > 0 OR
+      "Junior Principal Outstanding" > 0 OR
+      "Junior Interest Outstanding" > 0
+    ORDER BY "SKU ID"
+
+sheet2a_inter_sku_transfers:
+  name: "Inter-SKU Transfer Summary"
+  description: "Show SKUs with inter-SKU fund transfers"
+  category: "sheet2a"
+  sql: |
+    SELECT
+      "SKU ID",
+      "Merchant",
+      "Fund Transferred to Other SKU",
+      "Fund Transferred from Other SKU",
+      "Variance"
+    FROM mart.v_level2a
+    WHERE
+      "Fund Transferred to Other SKU" <> 0 OR
+      "Fund Transferred from Other SKU" <> 0
+    ORDER BY "SKU ID"
+
+sheet2a_variance_by_category:
+  name: "Expected vs Paid Variance by Category"
+  description: "Show variance breakdown for all payment categories"
+  category: "sheet2a"
+  sql: |
+    SELECT
+      "SKU ID",
+      "Merchant",
+      "Management Fee Expected" - "Management Fee Paid" AS "Mgmt Fee Var",
+      "Administrative Fee Expected" - "Administrative Fee Paid" AS "Admin Fee Var",
+      "Interest Difference Expected" - "Interest Difference Paid" AS "Int Diff Var",
+      "Senior Principal Expected" - "Senior Principal Paid" AS "Sr Principal Var",
+      "Senior Interest Expected" - "Senior Interest Paid" AS "Sr Interest Var",
+      "Junior Principal Expected" - "Junior Principal Paid" AS "Jr Principal Var",
+      "Junior Interest Expected" - "Junior Interest Paid" AS "Jr Interest Var"
+    FROM mart.v_level2a
+    ORDER BY "SKU ID"
+
+# Sheet2b (Level-2b) Queries
+sheet2b_ui_vs_cf_mismatches:
+  name: "UI vs CF Mismatches"
+  description: "Show SKUs where UI and CF values don't match"
+  category: "sheet2b"
+  sql: |
+    SELECT * FROM mart.v_level2b
+    WHERE
+      "Total Fund Inflow Variance" <> 0 OR
+      "Management Fee Paid Variance" <> 0 OR
+      "Administrative Fee Paid Variance" <> 0 OR
+      "Interest Difference Paid Variance" <> 0 OR
+      "Senior Principal Paid Variance" <> 0 OR
+      "Senior Interest Paid Variance" <> 0 OR
+      "Junior Principal Paid Variance" <> 0 OR
+      "Junior Interest Paid Variance" <> 0
+    ORDER BY "SKU ID"
+
+sheet2b_platform_fee_discrepancies:
+  name: "Platform Fee Discrepancies"
+  description: "Show SKUs with FH Platform Fee variance"
+  category: "sheet2b"
+  sql: |
+    SELECT
+      "SKU ID",
+      "Merchant",
+      "FH Platform Fee (UI)",
+      "FH Platform Fee (Calc.)",
+      "FH Platform Fee Variance"
+    FROM mart.v_level2b
+    WHERE "FH Platform Fee Variance" <> 0
+    ORDER BY ABS("FH Platform Fee Variance") DESC
+
+sheet2b_negative_variances:
+  name: "All Negative Variances"
+  description: "Show all negative variance records in UI vs CF comparison"
+  category: "sheet2b"
+  sql: |
+    SELECT * FROM mart.v_level2b
+    WHERE
+      "Total Fund Inflow Variance" < 0 OR
+      "Management Fee Paid Variance" < 0 OR
+      "Administrative Fee Paid Variance" < 0 OR
+      "Interest Difference Paid Variance" < 0 OR
+      "Senior Principal Paid Variance" < 0 OR
+      "Senior Interest Paid Variance" < 0 OR
+      "Junior Principal Paid Variance" < 0 OR
+      "Junior Interest Paid Variance" < 0 OR
+      "SPAR Variance" < 0 OR
+      "FH Platform Fee Variance" < 0
+    ORDER BY "SKU ID"
+
+sheet2b_spar_variance:
+  name: "SPAR Variance Analysis"
+  description: "Compare SPAR UI vs CF values"
+  category: "sheet2b"
+  sql: |
+    SELECT
+      "SKU ID",
+      "Merchant",
+      "SPAR (UI)",
+      "SPAR (CF)",
+      "SPAR Variance"
+    FROM mart.v_level2b
+    WHERE "SPAR Variance" <> 0
+    ORDER BY ABS("SPAR Variance") DESC
