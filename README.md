@@ -238,7 +238,7 @@ make etl-reload
 4. Connect locally or from your desktop using `postgresql://appuser:changeme@localhost:5433/appdb` (credentials can be overridden in `.env`).
 5. Stop the container when finished: `scripts/db_down.sh` (or `make down`).
 
-The container binds host port `5433` → container `5432`, stores data in `./data/pgdata`, and exposes CSV drop space at `./data/inc_data`.
+The container binds host port `5433` → container `5432`. Database data stays in the container (ephemeral). CSV files are mounted from `./data/inc_data`.
 
 #### Windows 10/11: beginner-friendly Docker Desktop setup
 1. **Prepare Windows for Docker**
@@ -260,7 +260,7 @@ The container binds host port `5433` → container `5432`, stores data in `./dat
 - Alternatively, call `./scripts/etl_make.sh <target>` directly (e.g., `./scripts/etl_make.sh etl-verify`); both options mount the repo into the container and reuse the same image cache.
 - Test previews are suppressed by default to keep output concise. Set `SHOW_PREVIEW=1` when invoking a target (e.g., `SHOW_PREVIEW=1 make container-etl-verify`) to print Level‑1/Level‑2 samples and audits.
 - If Docker’s build cache becomes corrupt (common after Docker Desktop upgrades on Windows/macOS), run `make docker-clean` from Git Bash/Terminal. The helper calls `docker buildx prune`, `docker builder prune`, and `docker system prune --volumes` with force flags to wipe stale layers before rebuilding the tool image.
-- To reset the workspace without losing raw data: `make down` (stop containers) followed by `make clean-reset`. This removes generated CSVs, test fixtures, `__pycache__`, and `.pytest_cache` while leaving `data/pgdata` untouched so you can keep database state if desired.
+- To reset the workspace: `make down` (stop containers) followed by `make clean-reset`. This removes generated CSVs, test fixtures, `__pycache__`, and `.pytest_cache`. Note: Database data is ephemeral (stored in container), so stopping the container clears the database.
 - **Fresh checkout / update commands** (run from the repository root after cloning or pulling):
   ```bash
   git pull                      # or git clone <repo-url>
@@ -469,7 +469,7 @@ ORDER BY ABS(SUM("Variance")) DESC;
 Shortcuts:
 - `make preview-level1` – runs the first query above from the CLI.
 - `make preview-level1-sku SKU='BONE CUTTER-1288-636-hXKMZMU5NF'` – shows the Level‑1 row(s) for that SKU.
-- **Fresh install or deleted `pgdata`**: drop the four source CSVs (plus the Level‑1 reference export) into `data/inc_data/`, then run:
+- **Fresh install or new database**: drop the four source CSVs into `data/inc_data/`, then run:
   ```bash
   make up
   make up-wait
@@ -615,8 +615,9 @@ For a daily operations hand-off, refer to `docs/AGENT_HANDOFF.md`.
 Make sure Docker is running and the container is up (`make up`) before launching the client.
 
 ### Host data directory
-- By default the project stores state and incoming CSVs in `./data` (see `DATA_DIR` in `.env`). The folder is created automatically the first time you run `make up` or `make container-...` and is bind-mounted into the containers.
-- To use a different location, set `DATA_DIR=/path/to/storage` in your environment or `.env` before invoking the commands. All helper scripts respect the setting and will create the necessary `pgdata` and `inc_data` subdirectories if they do not already exist.
+- By default the project stores incoming CSVs in `./data/inc_data` (see `DATA_DIR` in `.env`). The folder is created automatically the first time you run `make up` or `make container-...` and is bind-mounted into the containers.
+- Database data stays in the container (ephemeral - cleared when container is removed).
+- To use a different location for CSV files, set `DATA_DIR=/path/to/storage` in your environment or `.env` before invoking the commands. All helper scripts respect the setting and will create the necessary `inc_data` subdirectory if it does not already exist.
 
 ## Quick Start (Linux & macOS terminals)
 ### Prerequisites
@@ -653,19 +654,18 @@ You can also bind a different port via `.env` if necessary (update `PGPORT` befo
 1. Build the image once:
    ```bash
    docker build -t fundedhere-etl .
-   ```2. Provide the four CSV extracts under `$(pwd)/data/inc_data/`.
+   ```
+2. Provide the four CSV extracts under `$(pwd)/data/inc_data/`.
 3. Run the ETL in the container:
    ```bash
    docker run --rm -it \
      -v "$(pwd)/data/inc_data:/app/data/inc_data" \
-     -v "$(pwd)/data/pgdata:/app/data/pgdata" \
      fundedhere-etl
    ```
    On Windows (PowerShell/Git Bash), replace `$(pwd)` with `%cd%`:
    ```bash
    docker run --rm -it ^
      -v %cd%\data\inc_data:/app/data/inc_data ^
-     -v %cd%\data\pgdata:/app/data/pgdata ^
      fundedhere-etl
    ```
-The container bundles Python, make, and the Postgres client so you only need Docker. After the run, query the mart using `bash scripts/run_sql.sh ...` or connect to Postgres at `localhost:5433` (database `appdb`, user `appuser`, password `changeme`).
+The container bundles Python, make, and the Postgres client so you only need Docker. Database data is stored in the container (ephemeral). After the run, query the mart using `bash scripts/run_sql.sh ...` or connect to Postgres at `localhost:5433` (database `appdb`, user `appuser`, password `changeme`).
