@@ -89,6 +89,7 @@ if [ "${1:-}" != "help" ] && [ -n "$DB_SERVICE_NAME" ]; then
 fi
 
 if [ -n "$DB_SERVICE_NAME" ]; then
+  RUN_ENV_ARGS+=(-e SKIP_ENV_FILE=1)
   RUN_ENV_ARGS+=(-e PGHOST=postgres)
   RUN_ENV_ARGS+=(-e PGPORT=5432)
   RUN_ENV_ARGS+=(-e PGSSLMODE=disable)
@@ -96,7 +97,6 @@ if [ -n "$DB_SERVICE_NAME" ]; then
   RUN_ENV_ARGS+=(-e PGDATABASE=${POSTGRES_DB:-appdb})
   RUN_ENV_ARGS+=(-e PGPASSWORD=${POSTGRES_PASSWORD:-changeme})
   RUN_ENV_ARGS+=(-e DB_MODE=container-bind)
-  RUN_ENV_ARGS+=(-e SKIP_ENV_FILE=1)
   MAKE_OVERRIDE_ARGS+=("PGHOST=postgres")
   MAKE_OVERRIDE_ARGS+=("PGPORT=5432")
   MAKE_OVERRIDE_ARGS+=("PGSSLMODE=disable")

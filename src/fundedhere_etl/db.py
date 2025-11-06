@@ -83,30 +83,55 @@ class DatabaseManager:
 
     def bootstrap_schema(self) -> None:
         """
-        Initialize database schema from initdb/*.sql files.
+        Initialize database schema from initdb/*.sql and sql/phase2/*.sql files.
 
         Executes files in alphabetical order.
+        Skips 000_performance_tuning.sql (requires superuser/autocommit).
         """
+        # Phase 1: initdb/*.sql files
         initdb_dir = Path("initdb")
         if not initdb_dir.exists():
             logger.warning("initdb directory not found, skipping schema bootstrap")
             return
 
-        sql_files = sorted(initdb_dir.glob("*.sql"))
-        logger.info("Starting schema bootstrap", file_count=len(sql_files))
+        # Skip performance tuning (requires superuser/autocommit mode)
+        init_files = [
+            f
+            for f in sorted(initdb_dir.glob("*.sql"))
+            if f.name != "000_performance_tuning.sql"
+        ]
 
-        for sql_file in sql_files:
+        # Phase 2: sql/phase2/*.sql files
+        phase2_dir = Path("sql/phase2")
+        phase2_files = sorted(phase2_dir.glob("*.sql")) if phase2_dir.exists() else []
+
+        all_files = init_files + phase2_files
+        logger.info("Starting schema bootstrap", file_count=len(all_files))
+
+        for sql_file in all_files:
+            logger.info("Executing SQL file", file=str(sql_file))
             self.execute_file(sql_file)
 
-        logger.info("Schema bootstrap completed", file_count=len(sql_files))
+        logger.info("Schema bootstrap completed", file_count=len(all_files))
 
     def refresh_materialized_views(self) -> None:
         """Refresh all materialized views"""
         logger.info("Refreshing materialized views")
         with self.connect() as conn:
-            conn.execute("SELECT core.refresh_all();")
+            # Use parallel refresh function for better performance
+            result = conn.execute("SELECT * FROM core.refresh_all_parallel();")
+            rows = result.fetchall()
             conn.commit()
-        logger.info("Materialized views refreshed")
+
+            for row in rows:
+                logger.debug(
+                    "View refreshed",
+                    view=row["view_name"],
+                    duration_ms=row["duration_ms"],
+                    rows=row["rows_refreshed"],
+                )
+
+        logger.info("Materialized views refreshed", view_count=len(rows))
 
     def query(self, sql: str) -> list[dict[str, Any]]:
         """Execute query and return results as list of dicts"""
