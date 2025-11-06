@@ -152,6 +152,10 @@ etl-verify:
 > $(MAKE) etl-load
 > bash scripts/run_test_suite.sh
 
+# Verify only (assumes data already loaded)
+etl-test-only:
+> bash scripts/run_test_suite.sh
+
 # ──────────────────────────────────────────────────────────────────────────────
 # CSV loaders — column lists handled by scripts/load_raw.sh
 # ──────────────────────────────────────────────────────────────────────────────

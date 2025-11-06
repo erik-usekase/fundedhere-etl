@@ -5,6 +5,7 @@
 
 # Local runtime artifacts
 data/pgdata
+data/postgres-data
 data/inc_data
 data/tmp
 data/*.log

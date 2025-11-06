@@ -28,12 +28,14 @@ data/inc_data/
 # 1. Start database
 make up-wait
 
-# 2. Run complete ETL pipeline (in Docker container)
-make container-etl-verify
+# 2. Load data (in Docker container)
+make container-etl-load
 
 # 3. Query the data (using docker exec - works everywhere)
 docker exec app-postgres psql -U appuser -d appdb -c "SELECT COUNT(*) FROM mart.v_level1;"
 ```
+
+**Note:** Data persists in a Docker named volume. You can run `make down` and `make up-wait` without losing data!
 
 **Time:** ~2 minutes total
 
