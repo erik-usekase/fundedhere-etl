@@ -1,0 +1,43 @@
+# Git attributes to ensure consistent line endings across platforms
+# This prevents CRLF issues in Git Bash on Windows
+
+# Default behavior: use LF for all text files
+* text=auto eol=lf
+
+# Shell scripts must always use LF
+*.sh text eol=lf
+
+# Makefiles must use LF
+Makefile text eol=lf
+*.mk text eol=lf
+
+# SQL files use LF
+*.sql text eol=lf
+
+# Python files use LF
+*.py text eol=lf
+
+# Environment files use LF
+.env* text eol=lf
+
+# YAML files use LF
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Markdown and documentation
+*.md text eol=lf
+*.txt text eol=lf
+
+# CSV files - treat as binary to preserve exact format
+*.csv binary
+
+# Explicitly declare files that should stay Windows-style (if any)
+# *.bat text eol=crlf
+
+# Binary files
+*.gz binary
+*.zip binary
+*.tar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
