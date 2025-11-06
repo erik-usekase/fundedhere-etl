@@ -156,6 +156,30 @@ etl-verify:
 etl-test-only:
 > bash scripts/run_test_suite.sh
 
+# Clear all loaded data (keeps schema)
+etl-clear-data:
+> @echo "Truncating all data tables..."
+> @scripts/run_sql.sh -c "TRUNCATE TABLE raw.external_accounts CASCADE;"
+> @scripts/run_sql.sh -c "TRUNCATE TABLE raw.va_txn CASCADE;"
+> @scripts/run_sql.sh -c "TRUNCATE TABLE raw.repmt_sku CASCADE;"
+> @scripts/run_sql.sh -c "TRUNCATE TABLE raw.repmt_sales CASCADE;"
+> @scripts/run_sql.sh -c "TRUNCATE TABLE ref.note_sku_va_map CASCADE;"
+> @echo "✓ All data tables cleared"
+
+# Verify data load and schema match target
+verify-target:
+> @echo "=== ROW COUNTS (Expected: 2718, 28599, 366, 366, 366, 366, 366) ==="
+> @docker exec app-postgres psql -U appuser -d appdb -c "SELECT 'external_accounts' as table, COUNT(*) FROM raw.external_accounts UNION ALL SELECT 'va_txn', COUNT(*) FROM raw.va_txn UNION ALL SELECT 'repmt_sku', COUNT(*) FROM raw.repmt_sku UNION ALL SELECT 'repmt_sales', COUNT(*) FROM raw.repmt_sales UNION ALL SELECT 'v_level1', COUNT(*) FROM mart.v_level1 UNION ALL SELECT 'v_level2a', COUNT(*) FROM mart.v_level2a UNION ALL SELECT 'v_level2b', COUNT(*) FROM mart.v_level2b;" | grep -E "table|external|va_txn|repmt|v_level"
+> @echo ""
+> @echo "=== SCHEMA STRUCTURE ==="
+> @docker exec app-postgres psql -U appuser -d appdb -c "SELECT table_name, COUNT(*) as columns FROM information_schema.columns WHERE table_schema='mart' AND table_name IN ('v_level1', 'v_level2a', 'v_level2b') GROUP BY table_name ORDER BY table_name;"
+> @echo "Expected: v_level1=8, v_level2a=16, v_level2b=12"
+> @echo ""
+> @echo "=== TEST SKU: 4 HOLE EGG PAN (Expected: Sheet1 variance=0, Sheet2a variance=0) ==="
+> @docker exec app-postgres psql -U appuser -d appdb -c "SELECT 'Sheet 1' as view, \"Amount Pulled\", \"Amount Received\", \"Variance\" FROM mart.v_level1 WHERE \"SKU ID\" = '4 HOLE EGG PAN-1288-636-92rxuDoq6U';" | head -5
+> @docker exec app-postgres psql -U appuser -d appdb -c "SELECT 'Sheet 2a' as view, \"Amount Received\", \"Variance\", \"Management Fee\", \"Senior Principal\" FROM mart.v_level2a WHERE \"SKU ID\" = '4 HOLE EGG PAN-1288-636-92rxuDoq6U';" | head -5
+> @docker exec app-postgres psql -U appuser -d appdb -c "SELECT 'Sheet 2b' as view, \"Total Fund Inflow\", \"Management Fee Paid\", \"Senior Principal Paid\" FROM mart.v_level2b WHERE \"SKU ID\" = '4 HOLE EGG PAN-1288-636-92rxuDoq6U';" | head -5
+
 # ──────────────────────────────────────────────────────────────────────────────
 # CSV loaders — column lists handled by scripts/load_raw.sh
 # ──────────────────────────────────────────────────────────────────────────────
