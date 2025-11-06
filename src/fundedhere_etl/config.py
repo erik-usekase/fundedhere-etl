@@ -1,6 +1,8 @@
 """Configuration management with AWS RDS auto-detection"""
 
+import os
 from typing import Literal
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,15 +18,15 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=None if os.getenv("SKIP_ENV_FILE") else ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",  # Allow extra env vars (webapp_port, etc)
     )
 
-    # PostgreSQL connection
-    pg_host: str = "localhost"
-    pg_port: int = 5433
+    # PostgreSQL connection - env vars override .env file
+    pg_host: str = Field(default="localhost", validation_alias="PGHOST")
+    pg_port: int = Field(default=5433, validation_alias="PGPORT")
     pg_database: str = "appdb"
     pg_user: str = "appuser"
     pg_password: str = "changeme"
