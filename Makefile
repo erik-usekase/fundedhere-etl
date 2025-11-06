@@ -16,6 +16,49 @@ INC_DIR := $(EFFECTIVE_DATA_DIR)/inc_data
 .SILENT:
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Default target - show help
+# ──────────────────────────────────────────────────────────────────────────────
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help:
+> @echo "FundedHere ETL - Common Make Targets"
+> @echo ""
+> @echo "Quick Start:"
+> @echo "  make up                    - Start PostgreSQL database"
+> @echo "  make up-wait               - Wait for database to be ready"
+> @echo "  make container-etl-verify  - Run complete ETL pipeline (prep + load + test)"
+> @echo "  make down                  - Stop database"
+> @echo ""
+> @echo "Database Management:"
+> @echo "  make up                    - Start database container"
+> @echo "  make up-wait               - Wait for database ready"
+> @echo "  make down                  - Stop database container"
+> @echo "  make logs                  - View database logs"
+> @echo "  make psql-host             - Test database connection"
+> @echo ""
+> @echo "ETL Pipeline:"
+> @echo "  make etl-prep              - Prepare CSV files for loading"
+> @echo "  make etl-load              - Load data (prep + init + load + refresh)"
+> @echo "  make etl-verify            - Full pipeline + tests"
+> @echo "  make container-etl-verify  - Run etl-verify in Docker container"
+> @echo ""
+> @echo "Data Loading:"
+> @echo "  make initdb                - Initialize database schema"
+> @echo "  make load-all-fresh        - Load all CSV data (truncates existing)"
+> @echo "  make refresh               - Refresh materialized views"
+> @echo ""
+> @echo "Queries:"
+> @echo "  make sql CMD='SELECT...'   - Run SQL query"
+> @echo "  make preview-level1        - Show Level 1 (Sheet 1) sample data"
+> @echo ""
+> @echo "Docker Helpers:"
+> @echo "  make container-TARGET      - Run any target in Docker container"
+> @echo "  make docker-clean          - Clean Docker build cache"
+> @echo ""
+> @echo "For detailed usage, see README.md or run: make container-etl-verify"
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Lifecycle (compose or host/remote handled in scripts)
 # ──────────────────────────────────────────────────────────────────────────────
 .PHONY: prep-data up up-wait down logs env psql-host sql sqlf refresh counts initdb bootstrap
