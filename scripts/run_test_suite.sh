@@ -45,9 +45,59 @@ validate_raw_data() {
   totals=$(scripts/run_sql.sh -c "select sum(cnt) from (select count(*) as cnt from raw.external_accounts union all select count(*) from raw.va_txn union all select count(*) from raw.repmt_sku union all select count(*) from raw.repmt_sales) t;" | tail -n +3 | head -n 1 | tr -d ' ')
   if [ "${totals:-0}" = "0" ]; then
     cat <<'MSG'
-No rows found in raw tables.
-  • Drop the monthly CSV exports into data/inc_data/ (or set EXTERNAL_ACCOUNTS_SRC, VA_TXN_SRC, REPMT_SKU_SRC, REPMT_SALES_SRC).
-  • Re-run make container-etl-verify to load data and rebuild marts.
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                          DATABASE READY - NO DATA                          ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+✓ Database schema initialized successfully
+✓ All views created (v_level1, v_level2a, v_level2b)
+✗ Raw tables are empty (no CSV data loaded)
+
+NEXT STEPS:
+
+1. Verify CSV files exist:
+   ls -lh data/inc_data/*.csv
+
+   Expected files (any of these naming patterns):
+   • external_accounts_2025-09.csv or external_accounts_full.csv
+   • va_txn_2025-09.csv or va_txn_full.csv
+   • repmt_sku_2025-09.csv or repmt_sku_full.csv
+   • repmt_sales_2025-09.csv or repmt_sales_full.csv
+
+2. Load data using either method:
+
+   METHOD A (Recommended):
+   make container-etl-load
+
+   METHOD B (Manual):
+   make prep
+   make load
+   make load-mapping
+   make refresh
+
+3. Verify data loaded:
+   make counts
+
+   Expected output:
+   • external_accounts: 2,718 rows
+   • va_txn: 28,599 rows
+   • repmt_sku: 366 rows
+   • repmt_sales: 366 rows
+   • v_level1: 366 rows (Sheet 1 - 8 columns)
+   • v_level2a: 366 rows (Sheet 2a - 58 columns)
+   • v_level2b: 366 rows (Sheet 2b - 34 columns)
+
+TROUBLESHOOTING:
+
+• If CSV files don't exist, place them in data/inc_data/
+• If files exist but not loading, check file permissions
+• For remote database, set environment variables:
+  export DB_MODE=remote
+  export PGHOST=your-database-host.com
+
+For more help, see: docs/SAMPLE_QUERIES.md
+
 MSG
     return 1
   fi

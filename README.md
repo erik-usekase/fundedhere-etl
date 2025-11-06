@@ -30,7 +30,9 @@ Further reading:
 - [Architecture & workflow](docs/EXISTING_ANALYSIS.md)
 - [Reconciliation logic](docs/RECONCILIATION_ANALYSIS.md)
 - [CSV ↔ SQL mapping](docs/FORMULA_MAPPING.md)
+- [Sample queries](docs/SAMPLE_QUERIES.md) 📊 - 40+ ready-to-use SQL queries for all views
 - [Database tools setup](docs/DATABASE_TOOLS.md) 🔧 - Connect pgAdmin, HeidiSQL, DBeaver, etc.
+- [Remote database setup](docs/REMOTE_DATABASE.md) 🌐 - Using external PostgreSQL (AWS RDS, Azure, GCP)
 - [Fast CSV loading guide](docs/FAST_LOADING.md) ⚡
 - [View optimization guide](docs/VIEW_OPTIMIZATION.md) 🚀
 - [Multi-period support guide](docs/MULTI_PERIOD.md) 📅
@@ -166,6 +168,33 @@ make periods-coverage            # Show coverage by period
 For comprehensive multi-period documentation: **[MULTI_PERIOD.md](docs/MULTI_PERIOD.md)**
 
 ## Quick Start
+
+### Docker-Only Setup (Recommended - No Local Installation)
+
+**Requirements:** Docker Desktop only (no Python, uv, or other tools needed)
+
+```bash
+# 1. Start database
+make up-wait
+
+# 2. Load all data (runs in container)
+make container-etl-load
+
+# 3. Verify
+make counts
+```
+
+**Time:** ~2 minutes
+**Result:** 366 SKUs loaded across all 3 reconciliation views
+
+The `container-etl-load` command runs everything inside Docker:
+- Prepares CSV files
+- Bootstraps schema (13 SQL files)
+- Loads data in parallel (~32k rows)
+- Loads mappings (366 SKUs)
+- Refreshes views
+
+### Alternative: Full Setup with Web Interface
 
 **One command to run everything:**
 

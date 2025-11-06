@@ -117,14 +117,25 @@ SELECT
   (ad.management_fee_paid + ad.admin_fee_paid + ad.additional_admin_fee_paid +
    ad.interest_difference_paid + ad.sr_principal_paid + ad.sr_interest_paid +
    ad.sr_add_interest_paid + ad.jr_principal_paid + ad.jr_interest_paid +
-   ad.jr_add_interest_paid) AS "Amount Distributed Down the Repayment Waterfall",
+   ad.jr_add_interest_paid) AS " Amount Distributed Down the Repayment Waterfall",
   ft.fund_transferred_to_other_sku AS "Fund Transferred to Other SKU",
   ROUND(ar.amount_received -
         (ad.management_fee_paid + ad.admin_fee_paid + ad.additional_admin_fee_paid +
          ad.interest_difference_paid + ad.sr_principal_paid + ad.sr_interest_paid +
          ad.sr_add_interest_paid + ad.jr_principal_paid + ad.jr_interest_paid +
          ad.jr_add_interest_paid) -
-        ft.fund_transferred_to_other_sku, 6) AS "Variance"
+        ft.fund_transferred_to_other_sku, 6) AS "Variance",
+  -- Waterfall breakdown columns (matching Excel columns 7-13)
+  ad.management_fee_paid AS "Management Fee",
+  ad.admin_fee_paid AS "Adminstrative Fee",
+  ad.additional_admin_fee_paid AS "Additional Adminstrative Fee",
+  ad.interest_difference_paid AS "Interest Difference",
+  ad.sr_principal_paid AS "Senior Principal",
+  ad.sr_interest_paid AS "Senior Interest",
+  ad.sr_add_interest_paid AS "Senior Additional Interest",
+  ad.jr_principal_paid AS "Junior Principal",
+  ad.jr_interest_paid AS "Junior Interest",
+  ad.jr_add_interest_paid AS "Junior Additional Interest"
 FROM sku_universe u
 LEFT JOIN amount_received_calc ar ON ar.sku_id = u.sku_id
 LEFT JOIN amount_distributed_calc ad ON ad.sku_id = u.sku_id

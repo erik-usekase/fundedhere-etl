@@ -271,7 +271,7 @@ export-level1:
 # Load all CSVs in parallel (fastest option for large files)
 load-fast:
 > echo "Fast parallel CSV loading from $(INC_DIR)..."
-> scripts/load_all_parallel.sh "$(INC_DIR)"
+> $(PYTHON) -m fundedhere_etl load --mode parallel
 
 # Load single CSV directly without preprocessing
 load-fast-single:
