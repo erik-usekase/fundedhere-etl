@@ -179,8 +179,11 @@ make up-wait
 # 2. Load all data (runs in container)
 make container-etl-load
 
-# 3. Verify
-make counts
+# 3. Verify (using docker exec - works everywhere)
+docker exec app-postgres psql -U appuser -d appdb -c "
+SELECT 'v_level1' as view, COUNT(*) as rows FROM mart.v_level1
+UNION ALL SELECT 'v_level2a', COUNT(*) FROM mart.v_level2a
+UNION ALL SELECT 'v_level2b', COUNT(*) FROM mart.v_level2b;"
 ```
 
 **Time:** ~2 minutes

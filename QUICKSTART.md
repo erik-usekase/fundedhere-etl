@@ -22,6 +22,8 @@ data/inc_data/
 
 ## Quick Start (3 Commands)
 
+**No local installation required - everything runs in Docker!**
+
 ```bash
 # 1. Start database
 make up-wait
@@ -29,8 +31,8 @@ make up-wait
 # 2. Run complete ETL pipeline (in Docker container)
 make container-etl-verify
 
-# 3. Query the data
-make sql CMD="SELECT COUNT(*) FROM mart.v_level1;"
+# 3. Query the data (using docker exec - works everywhere)
+docker exec app-postgres psql -U appuser -d appdb -c "SELECT COUNT(*) FROM mart.v_level1;"
 ```
 
 **Time:** ~2 minutes total
@@ -80,37 +82,51 @@ uv run fundedhere-etl load-mapping      # Load SKU-VA mappings
 uv run fundedhere-etl pipeline          # Complete ETL workflow
 ```
 
-### Make Targets
+### Docker Commands (Work Everywhere - Recommended)
 
 ```bash
 # Database management
-make up                    # Start PostgreSQL database
-make up-wait               # Start and wait for database ready
-make down                  # Stop database
-make logs                  # View database logs
+make up-wait               # Start database and wait until ready ✅
+make down                  # Stop database ✅
+make logs                  # View database logs ✅
 
-# ETL pipeline
-make container-etl-verify  # Full ETL in container (recommended)
-make etl-prep              # Prepare CSV files
-make etl-load              # Load data and refresh views
-make etl-verify            # Full pipeline + tests
+# ETL pipeline (runs in Docker container)
+make container-etl-verify  # Full ETL + tests ✅ RECOMMENDED
+make container-etl-load    # Load data only (skip tests) ✅
 
-# Queries
-make sql CMD="SELECT..."   # Run custom SQL
-make counts                # Show row counts
-make preview-level1        # Preview Level 1 data
+# Queries (using docker exec)
+docker exec app-postgres psql -U appuser -d appdb -c "SELECT COUNT(*) FROM mart.v_level1;"
+docker exec -it app-postgres psql -U appuser -d appdb  # Interactive session
+```
 
-# Help
+### Make Targets (Require Local psql/Python/uv)
+
+**⚠️ These commands require local tools and may fail if not installed:**
+
+```bash
+make sql CMD="SELECT..."   # Run custom SQL (needs psql)
+make counts                # Show row counts (needs psql)
+make etl-prep              # Prepare CSV files (needs uv/Python)
+make etl-load              # Load data (needs uv/Python + psql)
 make help                  # Show all targets
 ```
 
+**Use `docker exec` commands above instead for guaranteed compatibility!**
+
 ## Query the Data
 
-### Using psql
+### Using docker exec (Recommended - Works Everywhere)
 
 ```bash
-# Quick query
-make sql CMD="SELECT * FROM mart.v_level1 LIMIT 5;"
+# Quick query - Row counts
+docker exec app-postgres psql -U appuser -d appdb -c "
+SELECT 'v_level1' as view, COUNT(*) as rows FROM mart.v_level1
+UNION ALL SELECT 'v_level2a', COUNT(*) FROM mart.v_level2a
+UNION ALL SELECT 'v_level2b', COUNT(*) FROM mart.v_level2b;"
+
+# Quick query - Sample data
+docker exec app-postgres psql -U appuser -d appdb -c "
+SELECT * FROM mart.v_level1 LIMIT 5;"
 
 # Interactive session
 docker exec -it app-postgres psql -U appuser -d appdb
