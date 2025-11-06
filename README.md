@@ -26,21 +26,20 @@ The three reconciliation views use different definitions of "Amount Received":
 
 This difference is intentional - Sheet 1 tracks cash from merchants, while Sheet 2a/2b track total fund movement including internal transfers.
 
-Further reading:
-- [Architecture & workflow](docs/EXISTING_ANALYSIS.md)
-- [Reconciliation logic](docs/RECONCILIATION_ANALYSIS.md)
-- [CSV ↔ SQL mapping](docs/FORMULA_MAPPING.md)
-- [Sample queries](docs/SAMPLE_QUERIES.md) 📊 - 40+ ready-to-use SQL queries for all views
-- [Database tools setup](docs/DATABASE_TOOLS.md) 🔧 - Connect pgAdmin, HeidiSQL, DBeaver, etc.
-- [Remote database setup](docs/REMOTE_DATABASE.md) 🌐 - Using external PostgreSQL (AWS RDS, Azure, GCP)
-- [Fast CSV loading guide](docs/FAST_LOADING.md) ⚡
-- [View optimization guide](docs/VIEW_OPTIMIZATION.md) 🚀
-- [Multi-period support guide](docs/MULTI_PERIOD.md) 📅
-- [Validation log](docs/VALIDATION_RESULTS.md)
-- [Outstanding test gaps](docs/TEST_GAPS.md)
-- [Testing guide](docs/TESTING.md)
-- [Agent hand-off log](docs/AGENT_HANDOFF.md)
-- [View fix summary](.build/view_fix_summary.md) 🔧 - Recent cartesian product and filter fixes
+## Documentation
+
+### Quick Start
+- [**QUICKSTART.md**](QUICKSTART.md) - Get running in 5 minutes (3 commands)
+
+### User Guides
+- [**docs/SAMPLE_QUERIES.md**](docs/SAMPLE_QUERIES.md) 📊 - SQL queries for all three views (Sheet 1, 2a, 2b)
+- [**docs/REMOTE_DATABASE.md**](docs/REMOTE_DATABASE.md) 🌐 - Connect to external PostgreSQL (AWS RDS, Azure, GCP)
+- [**docs/MULTI_PERIOD.md**](docs/MULTI_PERIOD.md) 📅 - Multi-period reconciliation support
+- [**docs/MULTI_PERIOD_QUICK_REF.md**](docs/MULTI_PERIOD_QUICK_REF.md) - Quick reference for multi-period
+
+### Technical Reference
+- [**.build/VERIFICATION_COMPLETE.md**](.build/VERIFICATION_COMPLETE.md) ✅ - Complete verification summary (Nov 6, 2025)
+- [**.build/agent_state.md**](.build/agent_state.md) 📝 - Current system state and recent changes
 
 ## Data Sources (CSV extracts)
 1. **External Accounts (Merchant)** → `raw.external_accounts`
