@@ -491,3 +491,32 @@ etl-reload:
 > @echo "=========================================="
 > @echo ""
 > $(MAKE) periods-list
+
+# =============================================================================
+# Database Purge Commands (for date/time issues or complete reset)
+# =============================================================================
+
+.PHONY: purge-local purge-remote purge-and-reload
+
+## Purge local Docker database completely
+purge-local:
+	@echo "=== Purging Local Docker Database ==="
+	@echo "This will DROP all schemas and recreate from scratch"
+	@docker exec app-postgres psql -U appuser -d appdb -f /workspace/scripts/purge_database.sql
+
+## Purge and reload local Docker database
+purge-and-reload:
+	@bash scripts/purge_and_reload.sh
+
+## Show purge instructions for remote database
+purge-remote:
+	@echo "=== Remote Database Purge Instructions ==="
+	@echo ""
+	@echo "Connect to your remote database and run:"
+	@echo ""
+	@echo "  psql -h your-host -U appuser -d appdb -f scripts/purge_database.sql"
+	@echo ""
+	@echo "Or copy the contents of scripts/purge_database.sql and paste into pgAdmin/HeidiSQL"
+	@echo ""
+	@echo "File location: scripts/purge_database.sql"
+	@echo ""
