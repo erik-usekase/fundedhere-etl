@@ -23,12 +23,12 @@ def fetch_level1_data() -> list[dict[str, str]]:
     query = """
 COPY (
   SELECT
-    sku_id AS "SKU ID",
-    account_number AS "Account Number",
-    merchant AS "Merchant",
-    to_char(amount_pulled, 'FM999999999.00')   AS "Amount Pulled",
-    to_char(amount_received, 'FM999999999.00') AS "Amount Received",
-    to_char(sales_proceeds, 'FM999999999.00')  AS "Sales Proceeds"
+    "SKU ID",
+    "Account Number",
+    "Merchant",
+    to_char("Amount Pulled", 'FM999999999.00')   AS "Amount Pulled",
+    to_char("Amount Received", 'FM999999999.00') AS "Amount Received",
+    to_char("Sales Proceeds", 'FM999999999.00')  AS "Sales Proceeds"
   FROM mart.v_level1
   ORDER BY 1, 2
 ) TO STDOUT WITH CSV HEADER
