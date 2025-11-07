@@ -51,9 +51,36 @@ This difference is intentional - Sheet 1 tracks cash from merchants, while Sheet
 3. **Repmt-SKU (by Note)** → `raw.repmt_sku`
 4. **Repmt-Sales Proceeds (by Note)** → `raw.repmt_sales`
 
+### Multi-Period Support 📅
+
+**The system fully supports multiple months of data**, not just the current period:
+
+```bash
+# Load multiple periods at once
+data/inc_data/
+├── external_accounts_2025-09.csv  ← September
+├── va_txn_2025-09.csv
+├── repmt_sku_2025-09.csv
+├── repmt_sales_2025-09.csv
+├── external_accounts_2025-10.csv  ← October
+├── va_txn_2025-10.csv
+└── ...
+
+# Incremental load (preserves previous months)
+make load-multi-append
+
+# Query by period
+SELECT * FROM mart.v_level1_by_period WHERE "Period" = '2025-10';
+
+# Compare periods
+SELECT * FROM mart.compare_periods('2025-09', '2025-10');
+```
+
+**See [docs/MULTI_PERIOD.md](docs/MULTI_PERIOD.md) for complete multi-period guide.**
+
 ### Fast Direct CSV Loading (Recommended)
 
-Place the monthly CSV exports in `data/inc_data/` before running the ETL. The system automatically discovers the newest files matching these patterns:
+Place the monthly CSV exports in `data/inc_data/` before running the ETL. The system automatically discovers files matching these patterns:
 
 | Source | Pattern | Example |
 |--------|---------|---------|
