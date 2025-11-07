@@ -33,8 +33,8 @@ amount_pulled AS (
   FROM sku_accounts a
   LEFT JOIN raw.external_accounts e
     ON e.beneficiary_bank_account_number = a.account_number
-    AND TO_DATE(e.created_date, 'MM/DD/YYYY') >= (SELECT start_date FROM active_period)
-    AND TO_DATE(e.created_date, 'MM/DD/YYYY') <= (SELECT end_date FROM active_period)
+    AND parse_csv_date(e.created_date) >= (SELECT start_date FROM active_period)
+    AND parse_csv_date(e.created_date) <= (SELECT end_date FROM active_period)
   GROUP BY a.sku_id
 ),
 amount_received AS (
@@ -44,8 +44,8 @@ amount_received AS (
     COALESCE(SUM(
       CASE WHEN v.remarks = 'merchant-repayment'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND TO_DATE(v.date, 'MM/DD/YYYY') >= (SELECT start_date FROM active_period)
-        AND TO_DATE(v.date, 'MM/DD/YYYY') <= (SELECT end_date FROM active_period)
+        AND parse_csv_date(v.date) >= (SELECT start_date FROM active_period)
+        AND parse_csv_date(v.date) <= (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
     ), 0.00) AS received
