@@ -186,21 +186,22 @@ SELECT
         ft.fund_transferred_to_other_sku, 6) AS "Variance",
 
   -- Columns 7-20: Payment breakdown indicators (Yes/- format)
-  CASE WHEN p.management_fee_paid > 0 THEN 'Yes' ELSE '-' END AS "Management Fee",
-  CASE WHEN p.admin_fee_paid > 0 THEN 'Yes' ELSE '-' END AS "Adminstrative Fee",
-  CASE WHEN p.interest_difference_paid > 0 THEN 'Yes' ELSE '-' END AS "Interest Difference",
-  CASE WHEN p.sr_principal_paid > 0 THEN 'Yes' ELSE '-' END AS "Senior Principal",
-  CASE WHEN p.sr_interest_paid > 0 THEN 'Yes' ELSE '-' END AS "Senior Interest",
-  CASE WHEN p.jr_principal_paid > 0 THEN 'Yes' ELSE '-' END AS "Junior Principal",
-  CASE WHEN p.jr_interest_paid > 0 THEN 'Yes' ELSE '-' END AS "Junior Interest",
+  -- Note: Excel has duplicate names, added (1) and (2) suffixes for PostgreSQL compatibility
+  CASE WHEN p.management_fee_paid > 0 THEN 'Yes' ELSE '-' END AS "Management Fee (1)",
+  CASE WHEN p.admin_fee_paid > 0 THEN 'Yes' ELSE '-' END AS "Adminstrative Fee (1)",
+  CASE WHEN p.interest_difference_paid > 0 THEN 'Yes' ELSE '-' END AS "Interest Difference (1)",
+  CASE WHEN p.sr_principal_paid > 0 THEN 'Yes' ELSE '-' END AS "Senior Principal (1)",
+  CASE WHEN p.sr_interest_paid > 0 THEN 'Yes' ELSE '-' END AS "Senior Interest (1)",
+  CASE WHEN p.jr_principal_paid > 0 THEN 'Yes' ELSE '-' END AS "Junior Principal (1)",
+  CASE WHEN p.jr_interest_paid > 0 THEN 'Yes' ELSE '-' END AS "Junior Interest (1)",
   -- Duplicate columns (14-20) matching Excel structure
-  CASE WHEN p.management_fee_paid > 0 THEN 'Yes' ELSE '-' END AS "Management Fee",
-  CASE WHEN p.admin_fee_paid > 0 THEN 'Yes' ELSE '-' END AS "Adminstrative Fee",
-  CASE WHEN p.interest_difference_paid > 0 THEN 'Yes' ELSE '-' END AS "Interest Difference",
-  CASE WHEN p.sr_principal_paid > 0 THEN 'Yes' ELSE '-' END AS "Senior Principal",
-  CASE WHEN p.sr_interest_paid > 0 THEN 'Yes' ELSE '-' END AS "Senior Interest",
-  CASE WHEN p.jr_principal_paid > 0 THEN 'Yes' ELSE '-' END AS "Junior Principal",
-  CASE WHEN p.jr_interest_paid > 0 THEN 'Yes' ELSE '-' END AS "Junior Interest",
+  CASE WHEN p.management_fee_paid > 0 THEN 'Yes' ELSE '-' END AS "Management Fee (2)",
+  CASE WHEN p.admin_fee_paid > 0 THEN 'Yes' ELSE '-' END AS "Adminstrative Fee (2)",
+  CASE WHEN p.interest_difference_paid > 0 THEN 'Yes' ELSE '-' END AS "Interest Difference (2)",
+  CASE WHEN p.sr_principal_paid > 0 THEN 'Yes' ELSE '-' END AS "Senior Principal (2)",
+  CASE WHEN p.sr_interest_paid > 0 THEN 'Yes' ELSE '-' END AS "Senior Interest (2)",
+  CASE WHEN p.jr_principal_paid > 0 THEN 'Yes' ELSE '-' END AS "Junior Principal (2)",
+  CASE WHEN p.jr_interest_paid > 0 THEN 'Yes' ELSE '-' END AS "Junior Interest (2)",
 
   -- Columns 21-25: Amount Received breakdown
   ROUND(ar.sales_proceeds, 2) AS "Sales Proceeds",

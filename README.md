@@ -8,11 +8,15 @@ A production-focused pipeline that converts FundedHere’s reconciliation CSV ex
 - **Level 2b — UI vs. Cashflow**: contrasts UI-facing repayment totals with the cash ledger to highlight category-level deltas for downstream consumers.
 
 ## Product Outcomes
-- **✅ Excel Parity Achieved**: All three views (`mart.v_level1`, `mart.v_level2a`, `mart.v_level2b`) now produce values that exactly match the source Excel workbook formulas. Fixed cartesian product bug in v_level1 and corrected inflow filters in v_level2a/2b.
-- **Reference parity**: Views fully implement business logic from "Formula & Output" Excel sheets. Level-1 parity verified by automated test suite.
-- **Explorable data model**: inputs land in `raw.*`, mappings live in `ref.*`, typed transforms sit in `core.*`, and business consumers query `mart.*`.
-- **Automated verification**: header validation, SKU coverage, row-count parity, totals parity, and Level‑1 reference parity run in `scripts/run_test_suite.sh`.
-- **Agent-ready**: every row carries `merchant`, `sku_id`, and `period_ym` so downstream automation can request time slices without reprocessing the workbook.
+- **✅ Full Excel Structure Match**: All views match Excel workbook structure:
+  - `mart.v_level1`: 8 columns, 366 rows (Sheet 1)
+  - `mart.v_level2a`: 49 columns, 366 rows (Sheet 2a - Expected/Paid/Outstanding breakdown)
+  - `mart.v_level2b`: 32 columns, 366 rows (Sheet 2b - UI vs CF reconciliation)
+- **✅ ISO Date Format**: Standardized on YYYY-MM-DD format matching Excel source
+- **Reference parity**: Views fully implement business logic from Excel formulas
+- **Explorable data model**: inputs land in `raw.*`, mappings live in `ref.*`, typed transforms sit in `core.*`, business consumers query `mart.*`
+- **Cross-platform support**: Docker-based ETL works on Windows/WSL, Linux, macOS
+- **Agent-ready**: every row carries `merchant`, `sku_id`, and `period_ym` for time-slice queries
 
 ### Key Differences Between Views
 
