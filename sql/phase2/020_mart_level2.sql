@@ -26,7 +26,7 @@ amount_received_calc AS (
     COALESCE(SUM(
       CASE WHEN COALESCE(v.remarks, '') <> 'note-issued-transfer-to-sku'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
@@ -42,52 +42,52 @@ amount_distributed_calc AS (
     u.sku_id,
     COALESCE(SUM(CASE WHEN v.remarks = 'acquirer-fee'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS management_fee_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'fh-admin-fee'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS admin_fee_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'fh-add-admin-fee'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS additional_admin_fee_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'int-diff'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS interest_difference_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'senior-investor-principal'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS sr_principal_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'senior-investor-interest'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS sr_interest_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'senior-add-investor-interest'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS sr_add_interest_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'junior-investor-principal'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS jr_principal_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'junior-investor-interest'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS jr_interest_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'junior-add-investor-interest'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS jr_add_interest_paid
   FROM sku_universe u
@@ -101,7 +101,7 @@ fund_transfer_calc AS (
     COALESCE(SUM(
       CASE WHEN v.remarks = 'transfer-to-another-sku'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
@@ -164,7 +164,7 @@ amount_received_calc AS (
     COALESCE(SUM(
       CASE WHEN COALESCE(v.remarks, '') <> 'note-issued-transfer-to-sku'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC)
       ELSE 0 END
@@ -179,43 +179,43 @@ actual_paid AS (
     u.sku_id,
     COALESCE(SUM(CASE WHEN v.remarks = 'acquirer-fee'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS management_fee_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'fh-admin-fee'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS admin_fee_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'int-diff'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS interest_diff_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'senior-investor-principal'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS sr_principal_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'senior-investor-interest'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS sr_interest_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'junior-investor-principal'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS jr_principal_paid,
     COALESCE(SUM(CASE WHEN v.remarks = 'junior-investor-interest'
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS jr_interest_paid,
     -- SPAR = Disbursement Transaction Fee + Cross-Note Transfers
     COALESCE(SUM(CASE WHEN v.remarks IN ('Disbursement Transaction Fee', 'Transfer-to-another-sku (Cross Note) Same Merchant')
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
-        AND parse_csv_date(v.date) BETWEEN (SELECT start_date FROM active_period)
+        AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
       THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS spar_paid
   FROM sku_universe u

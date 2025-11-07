@@ -1,5 +1,5 @@
--- Set datestyle to handle DD-MM-YY format in CSVs
-ALTER DATABASE appdb SET datestyle = 'DMY';
+-- Set datestyle to ISO for YYYY-MM-DD format (matches Excel exports)
+ALTER DATABASE appdb SET datestyle = 'ISO, MDY';
 
 -- Layered schemas
 create schema if not exists raw;
