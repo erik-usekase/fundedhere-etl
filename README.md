@@ -374,115 +374,269 @@ Query definitions in `webapp/backend/queries.yaml`.
 
 ### Demo Queries
 
-Once the database is loaded, you can query all three views (Sheet1/Level1, Sheet2a/Level2a, Sheet2b/Level2b) using either `make container-sql` (Git Bash compatible) or direct SQL clients.
+Once the database is loaded, you can query all three views (Sheet1/Level1, Sheet2a/Level2a, Sheet2b/Level2b). The queries below are formatted for direct use in **pgAdmin**, **HeidiSQL**, **DBeaver**, or any SQL client.
 
-#### Quick Preview (5 Rows from Each View)
+**Database Connection:**
+- Host: `localhost`
+- Port: `5433`
+- Database: `appdb`
+- Username: `appuser`
+- Password: `changeme`
 
-**Sheet 1 (Level 1) — Cash vs Ledger:**
-```bash
-# Git Bash / Windows / Linux / macOS
-docker exec app-postgres psql -U appuser -d appdb -c \
-  'SELECT "SKU ID", "Merchant",
-   ROUND("Amount Received"::numeric, 2) as amount_received,
-   ROUND("Sales Proceeds"::numeric, 2) as sales_proceeds
-   FROM mart.v_level1 ORDER BY "SKU ID" LIMIT 5;'
-```
-Sample output:
-```
-               SKU ID               |  Merchant   | amount_received | sales_proceeds
-------------------------------------+-------------+-----------------+----------------
- 4 HOLE EGG PAN-1288-636-92rxuDoq6U | ABC Sdn Bhd |         1012.48 |        1012.48
- 4 HOLE EGG PAN-1321-636-PqPXXAM2wT4 | ABC Sdn Bhd |          540.00 |         540.00
- BONE CUTTER-1288-636-hXKMZMU5NF    | ABC Sdn Bhd |          532.12 |         532.12
-```
+---
 
-**Sheet 2a (Level 2a) — Waterfall Execution:**
-```bash
-docker exec app-postgres psql -U appuser -d appdb -c \
-  'SELECT "SKU ID", "Merchant",
-   ROUND("Amount Received"::numeric, 2) as amount_received,
-   ROUND("Amount Distributed Down the Repayment Waterfall"::numeric, 2) as waterfall
-   FROM mart.v_level2a ORDER BY "SKU ID" LIMIT 5;'
-```
-Sample output:
-```
-               SKU ID               |  Merchant   | amount_received | waterfall
-------------------------------------+-------------+-----------------+-----------
- 4 HOLE EGG PAN-1288-636-92rxuDoq6U | ABC Sdn Bhd |         1012.48 |   1186.43
- 4 HOLE EGG PAN-1321-636-PqPXAM2wT4 | ABC Sdn Bhd |          540.00 |   1189.74
+#### Sheet 1 (Level 1) — Cash vs Ledger
+
+**Quick preview (first 10 SKUs):**
+```sql
+SELECT
+  "SKU ID",
+  "Account Number",
+  "Merchant",
+  ROUND("Amount Pulled", 2) AS amount_pulled,
+  ROUND("Amount Received", 2) AS amount_received,
+  ROUND("Variance", 2) AS variance,
+  ROUND("Sales Proceeds", 2) AS sales_proceeds
+FROM mart.v_level1
+ORDER BY "SKU ID"
+LIMIT 10;
 ```
 
-**Sheet 2b (Level 2b) — UI vs Cashflow:**
-```bash
-docker exec app-postgres psql -U appuser -d appdb -c \
-  'SELECT "SKU ID", "Merchant",
-   ROUND("Total Fund Inflow"::numeric, 2) as total_inflow,
-   ROUND("Management Fee Paid"::numeric, 2) as mgmt_fee,
-   ROUND("Senior Principal Paid"::numeric, 2) as sr_principal
-   FROM mart.v_level2b ORDER BY "SKU ID" LIMIT 5;'
-```
-Sample output:
-```
-               SKU ID               |  Merchant   | total_inflow | mgmt_fee | sr_principal
-------------------------------------+-------------+--------------+----------+--------------
- 4 HOLE EGG PAN-1288-636-92rxuDoq6U | ABC Sdn Bhd |      1012.48 |    27.76 |      1000.00
- BONE CUTTER-1288-636-hXKMZMU5NF    | ABC Sdn Bhd |       532.12 |    11.23 |       405.00
+**SKUs with non-zero variance:**
+```sql
+SELECT
+  "SKU ID",
+  "Merchant",
+  ROUND("Amount Pulled", 2) AS amount_pulled,
+  ROUND("Amount Received", 2) AS amount_received,
+  ROUND("Variance", 2) AS variance
+FROM mart.v_level1
+WHERE "Variance" != 0
+ORDER BY ABS("Variance") DESC;
 ```
 
-#### Common Query Patterns
-
-**Find SKUs by merchant:**
-```bash
-docker exec app-postgres psql -U appuser -d appdb -c \
-  "SELECT \"SKU ID\", \"Merchant\", ROUND(\"Amount Received\"::numeric, 2)
-   FROM mart.v_level1
-   WHERE \"Merchant\" = 'ABC Sdn Bhd'
-   ORDER BY \"Amount Received\" DESC LIMIT 10;"
+**Test SKU verification:**
+```sql
+SELECT
+  "SKU ID",
+  "Merchant",
+  ROUND("Amount Pulled", 2) AS amount_pulled,
+  ROUND("Amount Received", 2) AS amount_received,
+  ROUND("Variance", 2) AS variance
+FROM mart.v_level1
+WHERE "SKU ID" = '4 HOLE EGG PAN-1288-636-92rxuDoq6U';
 ```
 
 **Top 10 SKUs by Amount Received:**
-```bash
-docker exec app-postgres psql -U appuser -d appdb -c \
-  'SELECT "SKU ID", "Merchant", ROUND("Amount Received"::numeric, 2) as amount
-   FROM mart.v_level1
-   ORDER BY "Amount Received" DESC LIMIT 10;'
+```sql
+SELECT
+  "SKU ID",
+  "Merchant",
+  ROUND("Amount Received", 2) AS amount_received,
+  ROUND("Sales Proceeds", 2) AS sales_proceeds,
+  ROUND("Variance", 2) AS variance
+FROM mart.v_level1
+ORDER BY "Amount Received" DESC
+LIMIT 10;
 ```
 
-**Check specific SKU details across all views:**
-```bash
-# Sheet 1 - Cash vs Ledger
-docker exec app-postgres psql -U appuser -d appdb -c \
-  "SELECT * FROM mart.v_level1 WHERE \"SKU ID\" = 'BONE CUTTER-1288-636-hXKMZMU5NF';"
-
-# Sheet 2a - Waterfall
-docker exec app-postgres psql -U appuser -d appdb -c \
-  "SELECT * FROM mart.v_level2a WHERE \"SKU ID\" = 'BONE CUTTER-1288-636-hXKMZMU5NF';"
-
-# Sheet 2b - UI vs CF
-docker exec app-postgres psql -U appuser -d appdb -c \
-  "SELECT * FROM mart.v_level2b WHERE \"SKU ID\" = 'BONE CUTTER-1288-636-hXKMZMU5NF';"
+**Find SKUs by merchant:**
+```sql
+SELECT
+  "SKU ID",
+  "Merchant",
+  ROUND("Amount Received", 2) AS amount_received,
+  ROUND("Variance", 2) AS variance
+FROM mart.v_level1
+WHERE "Merchant" = 'ABC Sdn Bhd'
+ORDER BY "Amount Received" DESC
+LIMIT 20;
 ```
 
-**Find SKUs with outstanding fees (Sheet 2a):**
-```bash
-docker exec app-postgres psql -U appuser -d appdb -c \
-  'SELECT "SKU ID", "Merchant",
-   ROUND("Amount Received"::numeric, 2) as received,
-   ROUND("Amount Distributed Down the Repayment Waterfall"::numeric, 2) as distributed
-   FROM mart.v_level2a
-   WHERE "Amount Distributed Down the Repayment Waterfall" > "Amount Received"
-   ORDER BY ("Amount Distributed Down the Repayment Waterfall" - "Amount Received") DESC
-   LIMIT 10;'
+---
+
+#### Sheet 2a (Level 2a) — Investor Reconciliation
+
+**Quick preview (first 10 SKUs with key columns):**
+```sql
+SELECT
+  "SKU ID",
+  "Merchant",
+  ROUND("Amount Received", 2) AS amount_received,
+  ROUND(" Amount Distributed Down the Repayment Waterfall", 2) AS waterfall,
+  ROUND("Fund Transferred to Other SKU", 2) AS transfers,
+  ROUND("Variance", 2) AS variance,
+  ROUND("Management Fee", 2) AS mgmt_fee,
+  ROUND("Senior Principal", 2) AS sr_principal
+FROM mart.v_level2a
+ORDER BY "SKU ID"
+LIMIT 10;
 ```
 
-**Check total counts (should match CSV row counts):**
+**All columns for a specific SKU:**
+```sql
+SELECT
+  "SKU ID",
+  "Merchant",
+  ROUND("Amount Received", 2) AS amount_received,
+  ROUND(" Amount Distributed Down the Repayment Waterfall", 2) AS waterfall,
+  ROUND("Fund Transferred to Other SKU", 2) AS transfers,
+  ROUND("Variance", 2) AS variance,
+  ROUND("Management Fee", 2) AS mgmt_fee,
+  ROUND("Adminstrative Fee", 2) AS admin_fee,
+  ROUND("Additional Adminstrative Fee", 2) AS add_admin_fee,
+  ROUND("Interest Difference", 2) AS interest_diff,
+  ROUND("Senior Principal", 2) AS sr_principal,
+  ROUND("Senior Interest", 2) AS sr_interest,
+  ROUND("Senior Additional Interest", 2) AS sr_add_interest,
+  ROUND("Junior Principal", 2) AS jr_principal,
+  ROUND("Junior Interest", 2) AS jr_interest,
+  ROUND("Junior Additional Interest", 2) AS jr_add_interest
+FROM mart.v_level2a
+WHERE "SKU ID" = '4 HOLE EGG PAN-1288-636-92rxuDoq6U';
+```
+
+**SKUs with variance > 0.01:**
+```sql
+SELECT
+  "SKU ID",
+  "Merchant",
+  ROUND("Amount Received", 2) AS amount_received,
+  ROUND(" Amount Distributed Down the Repayment Waterfall", 2) AS waterfall,
+  ROUND("Fund Transferred to Other SKU", 2) AS transfers,
+  ROUND("Variance", 2) AS variance
+FROM mart.v_level2a
+WHERE ABS("Variance") > 0.01
+ORDER BY ABS("Variance") DESC;
+```
+
+**SKUs with outstanding distributions:**
+```sql
+SELECT
+  "SKU ID",
+  "Merchant",
+  ROUND("Amount Received", 2) AS received,
+  ROUND(" Amount Distributed Down the Repayment Waterfall", 2) AS distributed,
+  ROUND(" Amount Distributed Down the Repayment Waterfall" - "Amount Received", 2) AS shortfall
+FROM mart.v_level2a
+WHERE " Amount Distributed Down the Repayment Waterfall" > "Amount Received"
+ORDER BY (" Amount Distributed Down the Repayment Waterfall" - "Amount Received") DESC
+LIMIT 20;
+```
+
+---
+
+#### Sheet 2b (Level 2b) — Payment Details
+
+**Quick preview (first 10 SKUs):**
+```sql
+SELECT
+  "SKU ID",
+  "Merchant",
+  ROUND("Total Fund Inflow", 2) AS total_inflow,
+  ROUND("Management Fee Paid", 2) AS mgmt_fee,
+  ROUND("Senior Principal Paid", 2) AS sr_principal,
+  ROUND("Senior Interest Paid", 2) AS sr_interest,
+  ROUND("Junior Principal Paid", 2) AS jr_principal
+FROM mart.v_level2b
+ORDER BY "SKU ID"
+LIMIT 10;
+```
+
+**All columns for a specific SKU:**
+```sql
+SELECT
+  "SKU ID",
+  "Merchant",
+  ROUND("Total Fund Inflow", 2) AS total_inflow,
+  ROUND("Management Fee Paid", 2) AS mgmt_fee,
+  ROUND("Adminstrative Fee Paid", 2) AS admin_fee,
+  ROUND("Interest Difference Paid", 2) AS interest_diff,
+  ROUND("Senior Principal Paid", 2) AS sr_principal,
+  ROUND("Senior Interest Paid", 2) AS sr_interest,
+  ROUND("Junior Principal Paid", 2) AS jr_principal,
+  ROUND("Junior Interest Paid", 2) AS jr_interest,
+  ROUND("SPAR", 2) AS spar,
+  ROUND("FH Platform Fee", 2) AS platform_fee
+FROM mart.v_level2b
+WHERE "SKU ID" = '4 HOLE EGG PAN-1288-636-92rxuDoq6U';
+```
+
+**SKUs with payments (top 20 by total inflow):**
+```sql
+SELECT
+  "SKU ID",
+  "Merchant",
+  ROUND("Total Fund Inflow", 2) AS total_inflow,
+  ROUND("Management Fee Paid", 2) AS mgmt_fee,
+  ROUND("Senior Principal Paid", 2) AS sr_principal,
+  ROUND("SPAR", 2) AS spar
+FROM mart.v_level2b
+WHERE "Total Fund Inflow" > 0
+ORDER BY "Total Fund Inflow" DESC
+LIMIT 20;
+```
+
+---
+
+#### Summary & Validation Queries
+
+**Row counts (should all be 366):**
+```sql
+SELECT
+  'v_level1' AS view,
+  COUNT(*) AS rows
+FROM mart.v_level1
+UNION ALL
+SELECT 'v_level2a', COUNT(*) FROM mart.v_level2a
+UNION ALL
+SELECT 'v_level2b', COUNT(*) FROM mart.v_level2b;
+```
+
+**Variance summary across all views:**
+```sql
+SELECT
+  'v_level1' AS view,
+  COUNT(*) AS total_rows,
+  COUNT(*) FILTER (WHERE "Variance" = 0) AS balanced_skus,
+  COUNT(*) FILTER (WHERE "Variance" != 0) AS unbalanced_skus,
+  ROUND(AVG(ABS("Variance"))::numeric, 2) AS avg_abs_variance
+FROM mart.v_level1
+
+UNION ALL
+
+SELECT
+  'v_level2a',
+  COUNT(*),
+  COUNT(*) FILTER (WHERE ABS("Variance") < 0.01),
+  COUNT(*) FILTER (WHERE ABS("Variance") >= 0.01),
+  ROUND(AVG(ABS("Variance"))::numeric, 2)
+FROM mart.v_level2a;
+```
+
+**Expected results:**
+- All three views: **366 rows**
+- Sheet 1 (v_level1): **363+ SKUs** with Variance = 0
+- Sheet 2a (v_level2a): **366 SKUs** with Variance < 0.01
+
+---
+
+#### Command Line Queries (for testing/troubleshooting)
+
+If you prefer command-line access, use `docker exec`:
+
 ```bash
+# Sheet 1 sample
 docker exec app-postgres psql -U appuser -d appdb -c \
-  'SELECT COUNT(*) as sheet1_rows FROM mart.v_level1;'
+  'SELECT "SKU ID", "Merchant", ROUND("Amount Received", 2) FROM mart.v_level1 LIMIT 5;'
+
+# Sheet 2a sample
 docker exec app-postgres psql -U appuser -d appdb -c \
-  'SELECT COUNT(*) as sheet2a_rows FROM mart.v_level2a;'
+  'SELECT "SKU ID", ROUND("Amount Received", 2) FROM mart.v_level2a LIMIT 5;'
+
+# Row counts
 docker exec app-postgres psql -U appuser -d appdb -c \
-  'SELECT COUNT(*) as sheet2b_rows FROM mart.v_level2b;'
+  'SELECT COUNT(*) FROM mart.v_level1;'
 ```
 
 ### Level‑1 query cheat sheet
