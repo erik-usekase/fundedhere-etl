@@ -2,6 +2,7 @@
 -- Sheet 2a: 49 columns matching Excel
 -- Sheet 2b: 32 columns matching Excel
 SET search_path = mart, public;
+SET datestyle = 'ISO, MDY';  -- Required for CSV dates in M/D/YYYY format
 
 -- ==================================================
 -- Sheet 2a View - FULL 49 COLUMNS

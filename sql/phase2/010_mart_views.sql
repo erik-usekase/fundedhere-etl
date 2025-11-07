@@ -1,5 +1,6 @@
 -- sql/phase2/010_mart_views.sql - Sheet 1 View (8 columns)
 SET search_path = mart, public;
+SET datestyle = 'ISO, MDY';  -- Required for CSV dates in M/D/YYYY format
 
 DROP VIEW IF EXISTS mart.v_level1 CASCADE;
 

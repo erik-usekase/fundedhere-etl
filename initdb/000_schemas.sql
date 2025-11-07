@@ -1,4 +1,6 @@
--- Set datestyle to ISO for YYYY-MM-DD format (matches Excel exports)
+-- Set datestyle to ISO, MDY to handle M/D/YYYY format from CSV exports
+-- This MUST match the CSV date format (9/29/2025 = September 29, 2025)
+-- Without this setting, databases with DMY default will fail on dates like 9/29/2025
 ALTER DATABASE appdb SET datestyle = 'ISO, MDY';
 
 -- Layered schemas
