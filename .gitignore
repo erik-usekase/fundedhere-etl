@@ -18,3 +18,5 @@ sample_file.xlsx
 docs/agent_state
 docs/AGENT_CONTEXT.md
 pre_csv/
+
+.DS_Store

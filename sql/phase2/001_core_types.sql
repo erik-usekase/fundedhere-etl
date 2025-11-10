@@ -62,6 +62,16 @@ BEGIN
     RETURN NULL;
   END IF;
 
+  -- Try DD-MM-YY first (2-digit year format like 29-09-25)
+  IF v ~ '^\d{2}-\d{2}-\d{2}$' THEN
+    BEGIN
+      ts := to_timestamp(v, 'DD-MM-YY') AT TIME ZONE 'UTC';
+      RETURN ts;
+    EXCEPTION WHEN others THEN
+      NULL; -- Fall through to other patterns
+    END;
+  END IF;
+
   -- Try flexible M/D/YYYY
   BEGIN
     ts := to_timestamp(v, 'FMMM/FMDD/YYYY') AT TIME ZONE 'UTC';
@@ -82,7 +92,13 @@ BEGIN
           ts := to_timestamp(v, 'DD/MM/YYYY') AT TIME ZONE 'UTC';
           RETURN ts;
         EXCEPTION WHEN others THEN
-          RETURN NULL;
+          -- Try DD-MM-YYYY
+          BEGIN
+            ts := to_timestamp(v, 'DD-MM-YYYY') AT TIME ZONE 'UTC';
+            RETURN ts;
+          EXCEPTION WHEN others THEN
+            RETURN NULL;
+          END;
         END;
       END;
     END;
