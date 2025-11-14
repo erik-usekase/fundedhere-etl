@@ -28,6 +28,7 @@ sku_accounts AS (
 ),
 amount_pulled AS (
   -- Amount Pulled = SUM(buy_amount) from external_accounts by account number
+  -- Filters by SGD currency to match Excel formula
   SELECT
     a.sku_id,
     COALESCE(SUM(CAST(REPLACE(NULLIF(e.buy_amount, ''), ',', '') AS NUMERIC)), 0.00) AS pulled
@@ -36,6 +37,7 @@ amount_pulled AS (
     ON e.beneficiary_bank_account_number = a.account_number
     AND core.to_date_safe(e.created_date) >= (SELECT start_date FROM active_period)
     AND core.to_date_safe(e.created_date) <= (SELECT end_date FROM active_period)
+    AND e.buy_currency = 'SGD'
   GROUP BY a.sku_id
 ),
 amount_received AS (

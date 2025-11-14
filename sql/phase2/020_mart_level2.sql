@@ -285,6 +285,14 @@ ui_data AS (
   LEFT JOIN raw.repmt_sales sales ON sales.sku_id = sku.sku_id
   WHERE sku.sku_id IS NOT NULL AND sku.sku_id <> '' AND sku.sku_id <> 'SKU ID'
 ),
+-- Reference Sheet 2a Variance for SPAR(CF) calculation
+-- Excel: Sheet 2b Column AD (SPAR CF) = XLOOKUP(SKU, Sheet 2a Column F "Variance")
+variance_from_2a AS (
+  SELECT
+    "SKU ID" as sku_id,
+    "Variance" as variance_cf
+  FROM mart.v_level2a
+),
 -- CF Data from va_txn transactions (Cash Flow)
 cf_data AS (
   SELECT
@@ -334,39 +342,29 @@ cf_data AS (
         AND COALESCE(v.receiver_va_closing_balance, '') <> ''
         AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
                                      AND (SELECT end_date FROM active_period)
-      THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS jr_interest_paid_cf,
-    -- SPAR calculation (remaining balance after all distributions)
-    COALESCE(
-      SUM(CASE WHEN v.receiver_virtual_account_id = u.sku_id
-              AND COALESCE(v.remarks, '') <> 'note-issued-transfer-to-sku'
-              AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
-                                           AND (SELECT end_date FROM active_period)
-          THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END) -
-      SUM(CASE WHEN v.sender_virtual_account_id = u.sku_id
-              AND CAST(v.date AS DATE) BETWEEN (SELECT start_date FROM active_period)
-                                           AND (SELECT end_date FROM active_period)
-          THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END)
-    , 0.00) AS spar_cf
+      THEN CAST(NULLIF(v.amount, '') AS NUMERIC) ELSE 0 END), 0.00) AS jr_interest_paid_cf
+    -- SPAR(CF) is now sourced from Sheet 2a Variance via variance_from_2a CTE
   FROM sku_universe u
   LEFT JOIN raw.va_txn v ON (v.receiver_virtual_account_id = u.sku_id OR v.sender_virtual_account_id = u.sku_id)
   GROUP BY u.sku_id
 )
 SELECT
-  -- Columns 1-3: Identifiers
+  -- Columns 1-2: Identifiers
   u.sku_id AS "SKU ID",
   u.merchant AS "Merchant",
-  ROUND(COALESCE(ui.total_fund_inflow_ui, 0), 2) AS "Total Fund Inflow",
 
-  -- Columns 4-12: Primary payment values (CF = Cash Flow)
-  ROUND(COALESCE(cf.management_fee_paid_cf, 0), 2) AS "Management Fee Paid",
-  ROUND(COALESCE(cf.admin_fee_paid_cf, 0), 2) AS "Adminstrative Fee Paid",
-  ROUND(COALESCE(cf.interest_difference_paid_cf, 0), 2) AS "Interest Difference Paid",
-  ROUND(COALESCE(cf.sr_principal_paid_cf, 0), 2) AS "Senior Principal Paid",
-  ROUND(COALESCE(cf.sr_interest_paid_cf, 0), 2) AS "Senior Interest Paid",
-  ROUND(COALESCE(cf.jr_principal_paid_cf, 0), 2) AS "Junior Principal Paid",
-  ROUND(COALESCE(cf.jr_interest_paid_cf, 0), 2) AS "Junior Interest Paid",
-  ROUND(COALESCE(cf.spar_cf, 0), 2) AS "SPAR",
-  ROUND(COALESCE(ui.fh_platform_fee_ui, 0), 2) AS "FH Platform Fee",
+  -- Columns 3-12: UI vs CF Variances (UI - CF)
+  -- Excel formula pattern: ROUND(UI_value - CF_value, 2)
+  ROUND(COALESCE(ui.total_fund_inflow_ui, 0) - COALESCE(cf.amount_received_cf, 0), 2) AS "Total Fund Inflow",
+  ROUND(COALESCE(ui.management_fee_paid_ui, 0) - COALESCE(cf.management_fee_paid_cf, 0), 2) AS "Management Fee Paid",
+  ROUND(COALESCE(ui.admin_fee_paid_ui, 0) - COALESCE(cf.admin_fee_paid_cf, 0), 2) AS "Adminstrative Fee Paid",
+  ROUND(COALESCE(ui.interest_difference_paid_ui, 0) - COALESCE(cf.interest_difference_paid_cf, 0), 2) AS "Interest Difference Paid",
+  ROUND(COALESCE(ui.sr_principal_paid_ui, 0) - COALESCE(cf.sr_principal_paid_cf, 0), 2) AS "Senior Principal Paid",
+  ROUND(COALESCE(ui.sr_interest_paid_ui, 0) - COALESCE(cf.sr_interest_paid_cf, 0), 2) AS "Senior Interest Paid",
+  ROUND(COALESCE(ui.jr_principal_paid_ui, 0) - COALESCE(cf.jr_principal_paid_cf, 0), 2) AS "Junior Principal Paid",
+  ROUND(COALESCE(ui.jr_interest_paid_ui, 0) - COALESCE(cf.jr_interest_paid_cf, 0), 2) AS "Junior Interest Paid",
+  ROUND(COALESCE(ui.spar_ui, 0) - COALESCE(v2a.variance_cf, 0), 2) AS "SPAR",
+  ROUND(COALESCE(ui.fh_platform_fee_ui, 0) - COALESCE(ui.fh_platform_fee_ui, 0), 2) AS "FH Platform Fee",
 
   -- Columns 13-32: UI vs CF comparison
   ROUND(COALESCE(ui.management_fee_paid_ui, 0), 2) AS "Management Fee Paid (UI)",
@@ -384,7 +382,7 @@ SELECT
   ROUND(COALESCE(ui.jr_interest_paid_ui, 0), 2) AS "Junior Interest Paid (UI)",
   ROUND(COALESCE(cf.jr_interest_paid_cf, 0), 2) AS "Junior Interest Paid (CF)",
   ROUND(COALESCE(ui.spar_ui, 0), 2) AS "SPAR (UI)",
-  ROUND(COALESCE(cf.spar_cf, 0), 2) AS "SPAR (CF)",
+  ROUND(COALESCE(v2a.variance_cf, 0), 2) AS "SPAR (CF)",
   ROUND(COALESCE(ui.fh_platform_fee_ui, 0), 2) AS "FH Platform Fee (UI)",
   ROUND(COALESCE(ui.fh_platform_fee_ui, 0), 2) AS "FH Platform Fee (Calc.)",
   ROUND(COALESCE(ui.total_fund_inflow_ui, 0), 2) AS "Total Fund Inflow (UI)",
@@ -393,6 +391,7 @@ SELECT
 FROM sku_universe u
 LEFT JOIN ui_data ui ON ui.sku_id = u.sku_id
 LEFT JOIN cf_data cf ON cf.sku_id = u.sku_id
+LEFT JOIN variance_from_2a v2a ON v2a.sku_id = u.sku_id
 ORDER BY u.sku_id;
 
 COMMENT ON VIEW mart.v_level2b IS 'Sheet 2b: Complete 32-column view matching Excel - UI vs Cash Flow reconciliation';
